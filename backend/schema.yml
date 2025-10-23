@@ -1,0 +1,3040 @@
+openapi: 3.0.3
+info:
+  title: Dataelan API
+  version: 1.0.0
+  description: API for Dataelan - AI-native execution platform
+  contact:
+    name: Dataelan Support
+    email: support@dataelan.com
+  license:
+    name: Proprietary
+paths:
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/token/verify/:
+    post:
+      operationId: auth_token_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /api/v1/actionable-tasks/:
+    get:
+      operationId: v1_actionable_tasks_list
+      description: Get a list of all tasks the user has access to.
+      summary: List tasks
+      parameters:
+      - in: query
+        name: assignee_id
+        schema:
+          type: string
+          format: uuid
+        description: Assignee ID
+      - in: query
+        name: completed_at
+        schema:
+          type: string
+          format: date-time
+        description: Completion date
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: due_date
+        schema:
+          type: string
+          format: date
+        description: Due date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: priority
+        schema:
+          type: integer
+        description: Task priority
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Task status
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedActionableTaskList'
+          description: ''
+    post:
+      operationId: v1_actionable_tasks_create
+      description: Create a new task. Can be AI-generated or manual.
+      summary: Create task
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+  /api/v1/actionable-tasks/{id}/:
+    get:
+      operationId: v1_actionable_tasks_retrieve
+      description: Get detailed information about a specific task.
+      summary: Get task details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+    put:
+      operationId: v1_actionable_tasks_update
+      description: Update all fields of a specific task.
+      summary: Update task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+    patch:
+      operationId: v1_actionable_tasks_partial_update
+      description: Update one or more fields of a specific task.
+      summary: Partial update task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedActionableTaskRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+    delete:
+      operationId: v1_actionable_tasks_destroy
+      description: Delete a specific task. This is a soft delete.
+      summary: Delete task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Task ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/actionable-tasks/{id}/cancel/:
+    post:
+      operationId: v1_actionable_tasks_cancel_create
+      description: Cancel a task. Cancelled tasks can be reopened.
+      summary: Cancel task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+  /api/v1/actionable-tasks/{id}/complete/:
+    post:
+      operationId: v1_actionable_tasks_complete_create
+      description: Mark a task as completed and record completion timestamp.
+      summary: Complete task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+  /api/v1/actionable-tasks/{id}/reopen/:
+    post:
+      operationId: v1_actionable_tasks_reopen_create
+      description: Reopen a completed or cancelled task.
+      summary: Reopen task
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActionableTaskRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionableTask'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+          description: ''
+  /api/v1/projects/:
+    get:
+      operationId: v1_projects_list
+      description: Get a list of all projects the user has access to.
+      summary: List projects
+      parameters:
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: Project name
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - in: query
+        name: owner
+        schema:
+          type: string
+          format: uuid
+        description: Owner ID
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProjectList'
+          description: ''
+    post:
+      operationId: v1_projects_create
+      description: Create a new project.
+      summary: Create project
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+  /api/v1/projects/{id}/:
+    get:
+      operationId: v1_projects_retrieve
+      description: Get detailed information about a specific project.
+      summary: Get project details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectDetail'
+          description: ''
+    put:
+      operationId: v1_projects_update
+      description: Update all fields of a specific project.
+      summary: Update project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+    patch:
+      operationId: v1_projects_partial_update
+      description: Update one or more fields of a specific project.
+      summary: Partial update project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+    delete:
+      operationId: v1_projects_destroy
+      description: Delete a specific project. This is a soft delete.
+      summary: Delete project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/projects/{id}/archive/:
+    post:
+      operationId: v1_projects_archive_create
+      description: Archive a project, making it read-only.
+      summary: Archive project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+  /api/v1/projects/{id}/complete/:
+    post:
+      operationId: v1_projects_complete_create
+      description: Mark a project as completed.
+      summary: Complete project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+  /api/v1/projects/{id}/reactivate/:
+    post:
+      operationId: v1_projects_reactivate_create
+      description: Reactivate an archived or completed project.
+      summary: Reactivate project
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+          description: ''
+  /api/v1/projects/{project_pk}/collaborators/:
+    get:
+      operationId: v1_projects_collaborators_list
+      description: Get a list of all collaborators for a project.
+      summary: List collaborators
+      parameters:
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Collaborator ID
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: Role
+      - in: query
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        description: User ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProjectCollaboratorList'
+          description: ''
+    post:
+      operationId: v1_projects_collaborators_create
+      description: Add a new collaborator to the project.
+      summary: Add collaborator
+      parameters:
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCollaborator'
+          description: ''
+  /api/v1/projects/{project_pk}/collaborators/{id}/:
+    get:
+      operationId: v1_projects_collaborators_retrieve
+      description: Get detailed information about a specific collaborator.
+      summary: Get collaborator details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Collaborator ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCollaborator'
+          description: ''
+    put:
+      operationId: v1_projects_collaborators_update
+      description: Update collaborator role or permissions.
+      summary: Update collaborator
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Collaborator ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProjectCollaboratorRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCollaborator'
+          description: ''
+    patch:
+      operationId: v1_projects_collaborators_partial_update
+      description: Update specific fields of a collaborator.
+      summary: Partial update collaborator
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Collaborator ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectCollaboratorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectCollaboratorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProjectCollaboratorRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectCollaborator'
+          description: ''
+    delete:
+      operationId: v1_projects_collaborators_destroy
+      description: Remove a collaborator from the project.
+      summary: Remove collaborator
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Collaborator ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - in: path
+        name: project_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/prompt-sessions/:
+    get:
+      operationId: v1_prompt_sessions_list
+      description: Get a list of all prompt sessions the user has access to.
+      summary: List prompt sessions
+      parameters:
+      - in: query
+        name: cost
+        schema:
+          type: number
+        description: Total cost in USD
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Session status
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPromptSessionList'
+          description: ''
+    post:
+      operationId: v1_prompt_sessions_create
+      description: Create a new prompt session for AI interaction.
+      summary: Create prompt session
+      parameters:
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptSession'
+          description: ''
+  /api/v1/prompt-sessions/{id}/:
+    get:
+      operationId: v1_prompt_sessions_retrieve
+      description: Get detailed information about a specific prompt session.
+      summary: Get session details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptSession'
+          description: ''
+    put:
+      operationId: v1_prompt_sessions_update
+      description: Update all fields of a specific prompt session.
+      summary: Update session
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PromptSessionRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptSession'
+          description: ''
+    patch:
+      operationId: v1_prompt_sessions_partial_update
+      description: Update one or more fields of a specific prompt session.
+      summary: Partial update session
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptSessionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptSessionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptSessionRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptSession'
+          description: ''
+    delete:
+      operationId: v1_prompt_sessions_destroy
+      description: Delete a specific prompt session. This is a soft delete.
+      summary: Delete session
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: query
+        name: project_id
+        schema:
+          type: string
+          format: uuid
+        description: Project ID
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/prompt-sessions/{session_pk}/prompts/:
+    get:
+      operationId: v1_prompt_sessions_prompts_list
+      description: Get a list of all prompts in a session.
+      summary: List prompts
+      parameters:
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPromptList'
+          description: ''
+    post:
+      operationId: v1_prompt_sessions_prompts_create
+      description: Create a new prompt in a session.
+      summary: Create prompt
+      parameters:
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+          description: ''
+  /api/v1/prompt-sessions/{session_pk}/prompts/{id}/:
+    get:
+      operationId: v1_prompt_sessions_prompts_retrieve
+      description: Get detailed information about a specific prompt.
+      summary: Get prompt details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+          description: ''
+    put:
+      operationId: v1_prompt_sessions_prompts_update
+      description: Update all fields of a specific prompt.
+      summary: Update prompt
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PromptRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+          description: ''
+    patch:
+      operationId: v1_prompt_sessions_prompts_partial_update
+      description: Update one or more fields of a specific prompt.
+      summary: Partial update prompt
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPromptRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Prompt'
+          description: ''
+    delete:
+      operationId: v1_prompt_sessions_prompts_destroy
+      description: Delete a specific prompt. This is a soft delete.
+      summary: Delete prompt
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/v1/prompt-sessions/{session_pk}/prompts/{id}/execute/:
+    post:
+      operationId: v1_prompt_sessions_prompts_execute_create
+      description: Execute a prompt using the specified AI model.
+      summary: Execute prompt
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecutePromptRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExecutePromptRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExecutePromptRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelExecutionLog'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+          description: ''
+  /api/v1/prompt-sessions/{session_pk}/prompts/{prompt_pk}/executions/:
+    get:
+      operationId: v1_prompt_sessions_prompts_executions_list
+      description: Get a list of all model executions for a prompt.
+      summary: List executions
+      parameters:
+      - in: query
+        name: cost_usd
+        schema:
+          type: number
+        description: Cost in USD
+      - in: query
+        name: created_at
+        schema:
+          type: string
+          format: date-time
+        description: Creation date
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Execution ID
+      - in: query
+        name: model_name
+        schema:
+          type: string
+        description: AI model name
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: Execution status
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedModelExecutionLogList'
+          description: ''
+    post:
+      operationId: v1_prompt_sessions_prompts_executions_create
+      description: Create a new execution log for a prompt.
+      summary: Create execution log
+      parameters:
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelExecutionLog'
+          description: ''
+  /api/v1/prompt-sessions/{session_pk}/prompts/{prompt_pk}/executions/{id}/:
+    get:
+      operationId: v1_prompt_sessions_prompts_executions_retrieve
+      description: Get detailed information about a specific execution.
+      summary: Get execution details
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Execution ID
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelExecutionLog'
+          description: ''
+    put:
+      operationId: v1_prompt_sessions_prompts_executions_update
+      description: Update all fields of a specific execution log.
+      summary: Update execution
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Execution ID
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ModelExecutionLogRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelExecutionLog'
+          description: ''
+    patch:
+      operationId: v1_prompt_sessions_prompts_executions_partial_update
+      description: Update one or more fields of a specific execution log.
+      summary: Partial update execution
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Execution ID
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedModelExecutionLogRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedModelExecutionLogRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedModelExecutionLogRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelExecutionLog'
+          description: ''
+    delete:
+      operationId: v1_prompt_sessions_prompts_executions_destroy
+      description: Delete a specific execution log. This is a soft delete.
+      summary: Delete execution
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: Execution ID
+      - in: query
+        name: prompt_id
+        schema:
+          type: string
+          format: uuid
+        description: Prompt ID
+      - in: path
+        name: prompt_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      - in: query
+        name: session_id
+        schema:
+          type: string
+          format: uuid
+        description: Session ID
+      - in: path
+        name: session_pk
+        schema:
+          type: string
+          pattern: ^[0-9a-f-]+$
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    ActionableTask:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/ActionableTaskStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        project:
+          type: string
+          format: uuid
+        project_name:
+          type: string
+          readOnly: true
+        assignee:
+          type: string
+          format: uuid
+          nullable: true
+        assignee_email:
+          type: string
+          format: email
+          readOnly: true
+        assignee_name:
+          type: string
+          readOnly: true
+        creator:
+          type: string
+          format: uuid
+          readOnly: true
+        creator_email:
+          type: string
+          format: email
+          readOnly: true
+        creator_name:
+          type: string
+          readOnly: true
+        organization:
+          type: string
+          format: uuid
+          readOnly: true
+        organization_name:
+          type: string
+          readOnly: true
+        ai_generated:
+          type: boolean
+          readOnly: true
+        source_prompt:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        ai_confidence:
+          type: number
+          format: double
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        metadata: {}
+      required:
+      - ai_confidence
+      - ai_generated
+      - assignee_email
+      - assignee_name
+      - created_at
+      - creator
+      - creator_email
+      - creator_name
+      - id
+      - organization
+      - organization_name
+      - project
+      - project_name
+      - source_prompt
+      - title
+      - updated_at
+    ActionableTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/ActionableTaskStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        project:
+          type: string
+          format: uuid
+        assignee:
+          type: string
+          format: uuid
+          nullable: true
+        metadata: {}
+      required:
+      - project
+      - title
+    ActionableTaskStatusEnum:
+      enum:
+      - PENDING
+      - IN_PROGRESS
+      - COMPLETED
+      - CANCELLED
+      type: string
+      description: |-
+        * `PENDING` - Pending
+        * `IN_PROGRESS` - In Progress
+        * `COMPLETED` - Completed
+        * `CANCELLED` - Cancelled
+    ExecutePromptRequestRequest:
+      type: object
+      properties:
+        model:
+          type: string
+          minLength: 1
+          description: AI model to use
+        parameters:
+          type: object
+          additionalProperties: {}
+          description: Model-specific parameters
+      required:
+      - model
+    ModelExecutionLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        prompt:
+          type: string
+          format: uuid
+        prompt_text:
+          type: string
+          readOnly: true
+        model_name:
+          type: string
+          maxLength: 100
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        provider_display:
+          type: string
+          readOnly: true
+        response_type:
+          $ref: '#/components/schemas/ResponseTypeEnum'
+        response_type_display:
+          type: string
+          readOnly: true
+        output: {}
+        token_input:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Input tokens
+        token_output:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Output tokens
+        cost_usd:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          title: Cost in USD
+        latency_ms:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Latency in milliseconds
+        status:
+          $ref: '#/components/schemas/ModelExecutionLogStatusEnum'
+        status_display:
+          type: string
+          readOnly: true
+        raw_response: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - id
+      - model_name
+      - prompt
+      - prompt_text
+      - provider_display
+      - response_type_display
+      - status_display
+    ModelExecutionLogRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          format: uuid
+        model_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        response_type:
+          $ref: '#/components/schemas/ResponseTypeEnum'
+        output: {}
+        token_input:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Input tokens
+        token_output:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Output tokens
+        cost_usd:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          title: Cost in USD
+        latency_ms:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Latency in milliseconds
+        status:
+          $ref: '#/components/schemas/ModelExecutionLogStatusEnum'
+        raw_response: {}
+      required:
+      - model_name
+      - prompt
+    ModelExecutionLogStatusEnum:
+      enum:
+      - SUCCESS
+      - ERROR
+      - TIMEOUT
+      type: string
+      description: |-
+        * `SUCCESS` - Success
+        * `ERROR` - Error
+        * `TIMEOUT` - Timeout
+    ModelTypeEnum:
+      enum:
+      - TEXT
+      - CODE
+      - IMAGE
+      - VOICE
+      - VIDEO
+      type: string
+      description: |-
+        * `TEXT` - Text
+        * `CODE` - Code
+        * `IMAGE` - Image
+        * `VOICE` - Voice
+        * `VIDEO` - Video
+    PaginatedActionableTaskList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActionableTask'
+    PaginatedModelExecutionLogList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModelExecutionLog'
+    PaginatedProjectCollaboratorList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCollaborator'
+    PaginatedProjectList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+    PaginatedPromptList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Prompt'
+    PaginatedPromptSessionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PromptSession'
+    PatchedActionableTaskRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        priority:
+          $ref: '#/components/schemas/PriorityEnum'
+        status:
+          $ref: '#/components/schemas/ActionableTaskStatusEnum'
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        project:
+          type: string
+          format: uuid
+        assignee:
+          type: string
+          format: uuid
+          nullable: true
+        metadata: {}
+    PatchedModelExecutionLogRequest:
+      type: object
+      properties:
+        prompt:
+          type: string
+          format: uuid
+        model_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        response_type:
+          $ref: '#/components/schemas/ResponseTypeEnum'
+        output: {}
+        token_input:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Input tokens
+        token_output:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Output tokens
+        cost_usd:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          title: Cost in USD
+        latency_ms:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          title: Latency in milliseconds
+        status:
+          $ref: '#/components/schemas/ModelExecutionLogStatusEnum'
+        raw_response: {}
+    PatchedProjectCollaboratorRequest:
+      type: object
+      properties:
+        user:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        metadata: {}
+    PatchedProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        organization:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/Status220Enum'
+        metadata: {}
+    PatchedPromptRequest:
+      type: object
+      properties:
+        session:
+          type: string
+          format: uuid
+        input_text:
+          type: string
+          minLength: 1
+        context: {}
+        metadata: {}
+    PatchedPromptSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        project:
+          type: string
+          format: uuid
+        model_type:
+          $ref: '#/components/schemas/ModelTypeEnum'
+        status:
+          $ref: '#/components/schemas/PromptSessionStatusEnum'
+        prompt:
+          type: string
+          minLength: 1
+        context: {}
+        response: {}
+        metadata: {}
+    PriorityEnum:
+      enum:
+      - HIGH
+      - MEDIUM
+      - LOW
+      type: string
+      description: |-
+        * `HIGH` - High
+        * `MEDIUM` - Medium
+        * `LOW` - Low
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        organization:
+          type: string
+          format: uuid
+        organization_name:
+          type: string
+          readOnly: true
+        owner:
+          type: string
+          format: uuid
+          readOnly: true
+        owner_email:
+          type: string
+          format: email
+          readOnly: true
+        owner_name:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/Status220Enum'
+        collaborators:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCollaborator'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        metadata: {}
+      required:
+      - collaborators
+      - created_at
+      - id
+      - name
+      - organization
+      - organization_name
+      - owner
+      - owner_email
+      - owner_name
+      - started_at
+      - updated_at
+    ProjectCollaborator:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        user_name:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        metadata: {}
+      required:
+      - created_at
+      - id
+      - user
+      - user_email
+      - user_name
+    ProjectCollaboratorRequest:
+      type: object
+      properties:
+        user:
+          type: string
+          format: uuid
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        metadata: {}
+      required:
+      - user
+    ProjectDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        organization:
+          type: string
+          format: uuid
+        organization_name:
+          type: string
+          readOnly: true
+        owner:
+          type: string
+          format: uuid
+          readOnly: true
+        owner_email:
+          type: string
+          format: email
+          readOnly: true
+        owner_name:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/Status220Enum'
+        collaborators:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectCollaborator'
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        metadata: {}
+      required:
+      - collaborators
+      - created_at
+      - id
+      - name
+      - organization
+      - organization_name
+      - owner
+      - owner_email
+      - owner_name
+      - started_at
+      - updated_at
+    ProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        organization:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/Status220Enum'
+        metadata: {}
+      required:
+      - name
+      - organization
+    Prompt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        session:
+          type: string
+          format: uuid
+        session_title:
+          type: string
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+          readOnly: true
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        input_text:
+          type: string
+        context: {}
+        metadata: {}
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        execution_count:
+          type: integer
+          readOnly: true
+        latest_execution:
+          allOf:
+          - $ref: '#/components/schemas/ModelExecutionLog'
+          readOnly: true
+      required:
+      - created_at
+      - execution_count
+      - id
+      - input_text
+      - latest_execution
+      - session
+      - session_title
+      - user
+      - user_email
+    PromptRequest:
+      type: object
+      properties:
+        session:
+          type: string
+          format: uuid
+        input_text:
+          type: string
+          minLength: 1
+        context: {}
+        metadata: {}
+      required:
+      - input_text
+      - session
+    PromptSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        project:
+          type: string
+          format: uuid
+        project_name:
+          type: string
+          readOnly: true
+        creator:
+          type: string
+          format: uuid
+          readOnly: true
+        creator_email:
+          type: string
+          format: email
+          readOnly: true
+        creator_name:
+          type: string
+          readOnly: true
+        model_type:
+          $ref: '#/components/schemas/ModelTypeEnum'
+        model_type_display:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/PromptSessionStatusEnum'
+        prompt:
+          type: string
+        context: {}
+        response: {}
+        metadata: {}
+        cost:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          readOnly: true
+          description: Cost in USD for this session
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        is_active:
+          type: boolean
+          readOnly: true
+          title: Active
+          description: Designates whether this record should be treated as active.
+            Unselect this instead of deleting.
+      required:
+      - completed_at
+      - cost
+      - created_at
+      - creator
+      - creator_email
+      - creator_name
+      - id
+      - is_active
+      - model_type_display
+      - project
+      - project_name
+      - prompt
+      - started_at
+      - title
+      - updated_at
+    PromptSessionRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        project:
+          type: string
+          format: uuid
+        model_type:
+          $ref: '#/components/schemas/ModelTypeEnum'
+        status:
+          $ref: '#/components/schemas/PromptSessionStatusEnum'
+        prompt:
+          type: string
+          minLength: 1
+        context: {}
+        response: {}
+        metadata: {}
+      required:
+      - project
+      - prompt
+      - title
+    PromptSessionStatusEnum:
+      enum:
+      - DRAFT
+      - ACTIVE
+      - COMPLETED
+      - FAILED
+      type: string
+      description: |-
+        * `DRAFT` - Draft
+        * `ACTIVE` - Active
+        * `COMPLETED` - Completed
+        * `FAILED` - Failed
+    ProviderEnum:
+      enum:
+      - OPENAI
+      - ANTHROPIC
+      - GOOGLE
+      - COHERE
+      - STABILITY
+      - CUSTOM
+      type: string
+      description: |-
+        * `OPENAI` - OpenAI
+        * `ANTHROPIC` - Anthropic
+        * `GOOGLE` - Google
+        * `COHERE` - Cohere
+        * `STABILITY` - Stability AI
+        * `CUSTOM` - Custom
+    ResponseTypeEnum:
+      enum:
+      - TEXT
+      - IMAGE
+      - AUDIO
+      - VIDEO
+      - CODE
+      type: string
+      description: |-
+        * `TEXT` - Text
+        * `IMAGE` - Image
+        * `AUDIO` - Audio
+        * `VIDEO` - Video
+        * `CODE` - Code
+    RoleEnum:
+      enum:
+      - ADMIN
+      - EDITOR
+      - VIEWER
+      type: string
+      description: |-
+        * `ADMIN` - Admin
+        * `EDITOR` - Editor
+        * `VIEWER` - Viewer
+    Status220Enum:
+      enum:
+      - ACTIVE
+      - ARCHIVED
+      - COMPLETED
+      type: string
+      description: |-
+        * `ACTIVE` - Active
+        * `ARCHIVED` - Archived
+        * `COMPLETED` - Completed
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - refresh
+    TokenVerifyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - token
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: auth
+  description: Authentication endpoints
+- name: projects
+  description: Project management
+- name: prompts
+  description: AI prompt and execution management
+- name: tasks
+  description: Actionable tasks management

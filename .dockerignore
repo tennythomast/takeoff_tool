@@ -1,0 +1,34 @@
+# Git
+.git
+.gitignore
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__
+.Python
+*.py[cod]
+*$py.class
+.env
+
+# Virtual Environment
+venv/
+env/
+.env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker
+.docker/
+
+# Project specific
+*.log
+*.sqlite3
+media/
+staticfiles/
+postgres_data/

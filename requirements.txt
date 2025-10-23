@@ -1,0 +1,53 @@
+Django>=4.2.0
+djangorestframework>=3.15.0
+django-cors-headers>=4.3.0
+djangorestframework-simplejwt>=5.3.0
+drf-nested-routers>=0.94.0
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0
+drf-spectacular>=0.27.0
+
+# Redis packages for Django
+django-redis==5.3.0
+channels-redis==4.1.0
+redis==4.6.0
+
+# WebSockets
+channels>=4.0.0
+daphne>=4.0.0
+
+# Task Processing
+celery>=5.3.0
+django-celery-results>=2.5.0
+
+# Encryption
+django-encrypted-model-fields>=0.6.5
+
+# Testing
+factory-boy>=3.3.0
+faker>=20.1.0
+coverage>=7.3.2
+
+# AI/ML
+anthropic>=0.8.0
+openai>=1.5.0
+tiktoken>=0.5.0
+django-filter==23.2
+voyageai>=0.2.0  # Voyage AI embeddings
+
+# HTTP Client
+httpx>=0.28.0
+
+# RAG
+pgvector>=0.2.0              # PostgreSQL vector extension support
+qdrant-client>=1.7.0,<1.8.0
+sentence-transformers==2.2.2  # For local embeddings
+
+# Document Processing
+PyMuPDF>=1.20.0              # PDF extraction (more features than PyPDF2)
+PyPDF2==3.0.1                # PDF processing (keeping for compatibility)
+python-docx==0.8.11          # Word document processing
+chardet>=4.0.0               # Encoding detection
+markdown>=3.3.7              # Markdown parsing
+cohere==4.37                 # Text generation
+beautifulsoup4==4.12.2       # HTML processing

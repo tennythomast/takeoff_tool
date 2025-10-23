@@ -1,0 +1,1074 @@
+/**
+ * Production-ready Authentication Service
+ * Handles login, signup, token management with security best practices
+ */
+// At the top of the file with other constants
+
+// API URL configuration that works in both browser and server environments
+const getApiBaseUrl = () => {
+  // For production, use the environment variable if set
+  if (typeof process !== 'undefined' && process.env && process.env.NEXT_PUBLIC_API_URL) {
+    let url = process.env.NEXT_PUBLIC_API_URL;
+    // Remove trailing slash if present
+    url = url.endsWith('/') ? url.slice(0, -1) : url;
+    // Remove any /api suffix as we'll add it later
+    if (url.endsWith('/api')) {
+  if (typeof window !== 'undefined') {
+    // Use environment variable if available
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return process.env.NEXT_PUBLIC_API_URL.replace(/\/+$/, '');
+    }
+    
+    // In development, try to determine the best URL
+    if (process.env.NODE_ENV === 'development') {
+      // If we're running in Docker, the backend is at 'backend:8000'
+      // But from the browser, we need to access it via localhost
+      return 'http://localhost:8000';
+    }
+    
+    // In production with no env var, use relative URL
+    return '';
+  }
+  
+  // Server-side rendering - use Docker service name
+  return process.env.NEXT_PUBLIC_API_URL || 'http://backend:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log('API Base URL:', API_BASE_URL);
+
+// Helper function to construct API URLs
+const getApiUrl = (endpoint: string): string => {
+  const baseUrl = getApiBaseUrl();
+  
+  // Clean the endpoint
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+  
+  // Ensure we don't duplicate '/api' in the URL
+  if (baseUrl.endsWith('/api') || baseUrl.endsWith('/api/')) {
+    return `${baseUrl}/${cleanEndpoint}`;
+  }
+  
+  return `${baseUrl}/api/${cleanEndpoint}`;
+};
+
+// Fallback URLs to try if the primary URL fails
+const FALLBACK_URLS = [
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+  'http://backend:8000'
+].map(url => url.endsWith('/') ? url.slice(0, -1) : url);
+  
+// Default timeout for requests in milliseconds
+const DEFAULT_TIMEOUT = 15000; // 15 seconds
+const TOKEN_STORAGE_KEY = 'dataelan_auth_tokens';
+const USER_STORAGE_KEY = 'dataelan_user';
+  
+console.log('Environment variables:', {
+  NODE_ENV: process.env.NODE_ENV,
+  NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
+  FALLBACK_URLS: FALLBACK_URLS
+});
+console.log('[Auth Service] Configuration:', {
+  environment: process.env.NODE_ENV,
+  apiBaseUrl: getApiBaseUrl(),
+  sampleUrl: getApiUrl('auth/login/')
+});
+
+// Types and Interfaces
+export interface LoginCredentials {
+  email: string;
+  password: string;
+}
+
+export interface SignupData {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access: string;
+  refresh: string;
+  user?: User;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TokenPayload {
+  user_id: string;
+  email: string;
+  exp: number;
+  iat: number;
+}
+
+export interface StoredTokens {
+  access: string;
+  refresh: string;
+  expiresAt: number;
+}
+
+// Custom Error Classes
+export class AuthError extends Error {
+  statusCode: number;
+  errors?: Record<string, any>;
+  
+  constructor(message: string, statusCode: number = 401, errors?: Record<string, any>) {
+    super(message);
+    this.name = 'AuthError';
+    this.statusCode = statusCode;
+    this.errors = errors;
+    password: string;
+  }
+  
+  export interface AuthResponse {
+    access: string;
+    refresh: string;
+    user?: User;
+  }
+  
+  export interface User {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }
+  
+  export interface TokenPayload {
+    user_id: string;
+    email: string;
+    exp: number;
+    iat: number;
+  }
+  
+  export interface StoredTokens {
+    access: string;
+    refresh: string;
+    expiresAt: number;
+  }
+  
+  // Custom Error Classes
+  export class AuthError extends Error {
+    statusCode: number;
+    errors?: Record<string, any>;
+    
+    constructor(message: string, statusCode: number = 401, errors?: Record<string, any>) {
+      super(message);
+      this.name = 'AuthError';
+      this.statusCode = statusCode;
+      this.errors = errors;
+      
+      // Maintain proper prototype chain for TypeScript
+      Object.setPrototypeOf(this, AuthError.prototype);
+    }
+    
+    // For backward compatibility
+    get status() {
+      return this.statusCode;
+    }
+  }
+  
+  export class NetworkError extends AuthError {
+    constructor(
+      message: string = 'Network request failed', 
+      statusCode: number = 0, 
+      errors?: Record<string, any>
+    ) {
+      super(message, statusCode, errors);
+      this.name = 'NetworkError';
+      
+      // Maintain proper prototype chain for TypeScript
+      Object.setPrototypeOf(this, NetworkError.prototype);
+    }
+  }
+  
+  export class ValidationError extends AuthError {
+    constructor(message: string, errors: Record<string, any>) {
+      super(message, 400, errors);
+      this.name = 'ValidationError';
+      
+      // Maintain proper prototype chain for TypeScript
+      Object.setPrototypeOf(this, ValidationError.prototype);
+    }
+  }
+  
+  // Utility Functions
+  /**
+   * Enhanced fetch with timeout and comprehensive error handling
+   * Includes fallback URLs if the primary URL fails
+   */
+  async function fetchWithTimeout(url: string, options: RequestInit = {}, timeout = DEFAULT_TIMEOUT): Promise<Response> {
+    // Extract the path from the URL to use with fallback URLs
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(url);
+    } catch (e) {
+      console.error(`[fetchWithTimeout] Invalid URL: ${url}`, e);
+      throw new NetworkError(`Invalid URL: ${url}`);
+    }
+    
+    const path = parsedUrl.pathname + parsedUrl.search;
+    
+    // If the URL is an API URL, prepare fallback URLs
+    const isApiUrl = url.includes('/api/');
+    const urlsToTry = isApiUrl ? [url, ...FALLBACK_URLS.map(baseUrl => `${baseUrl}${path}`)] : [url];
+    
+    console.log(`[fetchWithTimeout] Attempting to fetch with ${urlsToTry.length} possible URLs`);
+    console.log('[fetchWithTimeout] URLs to try:', urlsToTry);
+    
+    // Redact sensitive information from logs
+    const headers = new Headers(options.headers);
+    const loggableOptions = {
+      ...options,
+      headers: {
+        ...Object.fromEntries(headers.entries()),
+        ...(headers.get('Authorization') ? { 'Authorization': 'Bearer [REDACTED]' } : {}),
+      },
+      body: options.body && typeof options.body === 'string' && options.body.includes('password') 
+        ? '[REDACTED]' 
+        : options.body
+    };
+    
+    console.log('[fetchWithTimeout] Request options:', JSON.stringify(loggableOptions, (key, value) => 
+      key === 'signal' ? '[Signal Object]' : value
+    ));
+    
+    // Try each URL in sequence
+    let lastError: Error | null = null;
+    let lastResponse: Response | null = null;
+  
+    // Filter out any duplicate URLs while preserving order
+    const uniqueUrls = Array.from(new Set(urlsToTry));
+  
+    for (const currentUrl of uniqueUrls) {
+      // Normalize the URL to prevent duplicates with/without trailing slashes
+      const normalizedUrl = currentUrl.endsWith('/') ? currentUrl.slice(0, -1) : currentUrl;
+      
+      console.log(`[fetchWithTimeout] Trying URL: ${normalizedUrl}`);
+      
+      const controller = new AbortController();
+      const id = setTimeout(() => {
+        console.error(`[fetchWithTimeout] Request to ${normalizedUrl} timed out after ${timeout}ms`);
+        controller.abort();
+      }, timeout);
+      
+      try {
+        // For debugging - log the full URL being used
+        const fullUrl = new URL(normalizedUrl);
+        console.log(`[fetchWithTimeout] Full URL: ${fullUrl.toString()}`);
+        console.log(`[fetchWithTimeout] Hostname: ${fullUrl.hostname}, Protocol: ${fullUrl.protocol}`);
+        
+        // Prepare headers
+        const headers = new Headers(options.headers);
+        if (!headers.has('Content-Type')) {
+          headers.set('Content-Type', 'application/json');
+        }
+        
+        // Add CORS headers if not already set
+        if (!headers.has('Accept')) {
+          headers.set('Accept', 'application/json');
+        }
+        
+        // Make the request with CORS support
+        const response = await fetch(normalizedUrl, {
+          ...options,
+          signal: controller.signal,
+          mode: 'cors',
+          credentials: 'include',
+          headers,
+          // Ensure we don't send the signal twice
+          ...(options.signal ? {} : { signal: controller.signal })
+        });
+        
+        clearTimeout(id);
+        lastResponse = response;
+        
+        console.log(`[fetchWithTimeout] Response status: ${response.status} for URL: ${normalizedUrl}`);
+        
+        // If we get a successful response, return it immediately
+        if (response.ok) {
+          return response;
+        }
+        
+        // For non-2xx responses, parse the error details
+        let errorData: any = {};
+        const contentType = response.headers.get('content-type');
+        
+        try {
+          if (contentType && contentType.includes('application/json')) {
+            errorData = await response.json().catch(() => ({}));
+          } else if (contentType && contentType.includes('text/')) {
+            errorData = { message: await response.text().catch(() => 'No error details') };
+          } else {
+            errorData = { message: await response.text().catch(() => 'No error details available') };
+          }
+        } catch (parseError) {
+          console.error('[fetchWithTimeout] Failed to parse error response:', parseError);
+        }
+        
+        const status = response.status;
+        
+        // Handle specific error cases
+        switch (status) {
+          case 400:
+            throw new ValidationError(
+              errorData.detail || errorData.message || 'Validation error',
+              errorData
+            );
+            
+          case 401:
+            throw new AuthError(
+              errorData.detail || errorData.message || 'Authentication required',
+              status,
+              errorData
+            );
+            
+          case 403:
+            throw new AuthError(
+              errorData.detail || errorData.message || 'Forbidden: You do not have permission',
+              status,
+              errorData
+            );
+            
+          case 404:
+            throw new NetworkError(
+              errorData.detail || errorData.message || 'Resource not found',
+              status,
+              errorData
+            );
+            
+          case 429: // Too Many Requests
+            throw new NetworkError(
+              errorData.detail || errorData.message || 'Too many requests. Please try again later.',
+              status,
+              errorData
+            );
+            
+          default:
+            if (status >= 400 && status < 500) {
+              throw new AuthError(
+                errorData.detail || errorData.message || `Request failed with status ${status}`,
+                status,
+                errorData
+              );
+            } else {
+              throw new NetworkError(
+                errorData.detail || errorData.message || `Server error (${status})`,
+                status,
+                errorData
+              );
+            }
+        }
+      } catch (error: unknown) {
+        clearTimeout(id);
+        
+        // Handle network errors
+        if (error instanceof TypeError) {
+          // Common network errors
+          if (error.message.includes('Failed to fetch')) {
+            lastError = new NetworkError(
+              'Network error: Failed to connect to the server', 
+              0,
+              { code: 'ENETUNREACH', url: normalizedUrl }
+            );
+          } else if (error.message.includes('CORS')) {
+            lastError = new NetworkError(
+              'Cross-Origin Request Blocked', 
+              0,
+              { code: 'ECONNABORTED', url: normalizedUrl }
+            );
+          } else {
+            lastError = new NetworkError(
+              `Network error: ${error.message}`,
+              0,
+              { url: normalizedUrl }
+            );
+          }
+        } else if (error instanceof DOMException && error.name === 'AbortError') {
+          // Handle timeout errors
+          lastError = new NetworkError(
+            `Request to ${normalizedUrl} timed out after ${timeout}ms`,
+            0,
+            { code: 'ETIMEDOUT', url: normalizedUrl, timeout }
+          );
+        } else if (error instanceof AuthError || error instanceof NetworkError || error instanceof ValidationError) {
+          // Re-throw our custom errors
+          throw error;
+        } else if (error instanceof Error) {
+          // Other Error objects
+          lastError = new NetworkError(
+            `Request failed: ${error.message}`,
+            0,
+            { 
+              name: error.name,
+              stack: error.stack,
+              url: normalizedUrl 
+            }
+          );
+        } else {
+          // Non-Error thrown value
+          lastError = new NetworkError(
+            'An unknown error occurred',
+            0,
+            { 
+              error: String(error),
+              url: normalizedUrl 
+            }
+          );
+        }
+        
+        console.error(`[fetchWithTimeout] Error with URL ${normalizedUrl}:`, error);
+      }
+    }
+    
+    // If we get here, all URLs failed
+    console.error('[fetchWithTimeout] All URLs failed');
+    
+    // If we have a response with error details, use that
+    if (lastResponse) {
+      let errorData: any = {};
+      try {
+        const contentType = lastResponse.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          errorData = await lastResponse.json().catch(() => ({}));
+        } else {
+          errorData = { message: await lastResponse.text().catch(() => 'No error details') };
+        }
+      } catch (e) {
+        console.error('[fetchWithTimeout] Failed to parse error response:', e);
+      }
+      
+      throw new NetworkError(
+        errorData.detail || errorData.message || `Request failed with status ${lastResponse.status}`,
+        lastResponse.status,
+        errorData
+      );
+    }
+    
+    // Otherwise, use the last error we captured
+    if (lastError) {
+      throw lastError;
+    }
+    
+    // If we have no error information at all
+    throw new NetworkError('Network request failed: No response or error information available');
+  }
+  
+  /**
+   * Parse JWT token payload
+   */
+  function parseJWTPayload(token: string): TokenPayload | null {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      return JSON.parse(jsonPayload);
+    } catch {
+      return null;
+    }
+  }
+  
+  /**
+   * Check if token is valid and not expired
+   */
+  function isTokenValid(token: string): boolean {
+    const payload = parseJWTPayload(token);
+    if (!payload) return false;
+    
+    const currentTime = Date.now() / 1000;
+    return payload.exp > currentTime + 60; // 60 second buffer
+  }
+  
+  /**
+   * Check if token expires soon (within 5 minutes)
+   */
+  function isTokenExpiringSoon(token: string): boolean {
+    const payload = parseJWTPayload(token);
+    if (!payload) return true;
+    
+    const currentTime = Date.now() / 1000;
+    const fiveMinutes = 5 * 60;
+    return payload.exp < currentTime + fiveMinutes;
+  }
+  
+  // Token Storage Management
+  /**
+   * Store tokens securely
+   * Uses sessionStorage for better security than localStorage
+   */
+  function setTokens(access: string, refresh: string): void {
+    const payload = parseJWTPayload(access);
+    const expiresAt = payload ? payload.exp * 1000 : Date.now() + (15 * 60 * 1000); // 15 min default
+    
+    const tokens: StoredTokens = {
+      access,
+      refresh,
+      expiresAt,
+    };
+    
+    try {
+      // Use sessionStorage for better security (cleared when tab closes)
+      sessionStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens));
+    } catch (error) {
+      console.warn('Failed to store tokens:', error);
+      // Fallback to memory storage or handle gracefully
+    }
+  }
+  
+  /**
+   * Get stored tokens
+   */
+  function getStoredTokens(): StoredTokens | null {
+    try {
+      const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }
+  
+  /**
+   * Remove stored tokens
+   */
+  function clearTokens(): void {
+    try {
+      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem(USER_STORAGE_KEY);
+    } catch (error) {
+      console.warn('Failed to clear tokens:', error);
+    }
+  }
+  
+  /**
+   * Store user data
+   */
+  function setCurrentUser(user: User): void {
+    try {
+      sessionStorage.setItem(USER_STORAGE_KEY, JSON.stringify(user));
+    } catch (error) {
+      console.warn('Failed to store user data:', error);
+    }
+  }
+  
+  /**
+   * Get current user from storage
+   */
+  function getStoredUser(): User | null {
+    try {
+      const stored = sessionStorage.getItem(USER_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  }
+  
+  // Core Authentication Functions
+  
+  /**
+   * Handle user login
+   */
+  export async function login(credentials: LoginCredentials): Promise<AuthResponse> {
+    try {
+      const loginUrl = getApiUrl('auth/token/');
+      console.log('Login URL:', loginUrl);
+      
+      const requestOptions: RequestInit = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: credentials.email, // Backend expects 'username' field
+          password: credentials.password,
+        }),
+        credentials: 'include' as RequestCredentials, // Include cookies for CSRF
+      };
+      
+      console.log('Request options:', JSON.stringify({
+        ...requestOptions,
+        body: 'HIDDEN_FOR_SECURITY'
+      }, null, 2));
+      
+      const response = await fetchWithTimeout(loginUrl, requestOptions);
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', JSON.stringify(Object.fromEntries([...response.headers.entries()]), null, 2));
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch((e) => {
+          console.error('Error parsing error response:', e);
+          return {};
+        });
+        
+        console.error('Error response data:', errorData);
+        
+        if (response.status === 400) {
+          throw new ValidationError('Invalid credentials', errorData);
+        } else if (response.status === 401) {
+          throw new AuthError('Invalid email or password', response.status);
+        } else if (response.status >= 500) {
+          throw new AuthError('Server error. Please try again later.', response.status);
+        } else {
+          throw new AuthError(errorData.message || 'Login failed', response.status, errorData);
+        }
+      }
+  
+      const data: AuthResponse = await response.json();
+      
+      // Store tokens
+      setTokens(data.access, data.refresh);
+      
+      // Fetch and store user data if not included
+      if (data.user) {
+        setCurrentUser(data.user);
+      } else {
+        try {
+          const user = await getCurrentUser();
+          if (user) {
+            setCurrentUser(user);
+            data.user = user;
+          }
+        } catch (error) {
+          console.warn('Failed to fetch user data after login:', error);
+        }
+      }
+  
+      return data;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new NetworkError('Login request failed');
+    }
+  }
+  
+  /**
+   * Handle user registration
+   */
+  export async function signup(userData: SignupData): Promise<User> {
+    try {
+      const signupUrl = getApiUrl('auth/register/');
+      console.log('Attempting signup with API URL:', signupUrl);
+      console.log('Full request URL:', signupUrl);
+      console.log('Request payload:', JSON.stringify({
+        email: userData.email,
+        password: '[REDACTED]',
+        first_name: userData.firstName,
+        last_name: userData.lastName,
+      }));
+      
+      const response = await fetchWithTimeout(signupUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          password: userData.password,
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        if (response.status === 400) {
+          throw new ValidationError('Registration failed', errorData);
+        } else if (response.status === 409) {
+          throw new AuthError('Email already exists', response.status);
+        } else if (response.status >= 500) {
+          throw new AuthError('Server error. Please try again later.', response.status);
+        } else {
+          throw new AuthError(errorData.message || 'Signup failed', response.status, errorData);
+        }
+      }
+  
+      const user: User = await response.json();
+  
+      // Auto-login after successful signup
+      try {
+        await login({
+          email: userData.email,
+          password: userData.password,
+        });
+      } catch (loginError) {
+        console.warn('Auto-login after signup failed:', loginError);
+        // Don't throw here - user was created successfully
+      }
+  
+      return user;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new NetworkError('Signup request failed');
+    }
+  }
+  
+  /**
+   * Refresh access token using refresh token
+   */
+  export async function refreshToken(): Promise<string | null> {
+    const tokens = getStoredTokens();
+    
+    if (!tokens || !tokens.refresh) {
+      console.log('No refresh token available');
+      return null;
+    }
+  
+    try {
+      const refreshUrl = getApiUrl('auth/token/refresh/');
+      console.log('Refreshing token with URL:', refreshUrl);
+      
+      const response = await fetchWithTimeout(refreshUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          refresh: tokens.refresh,
+        }),
+      });
+  
+      if (!response.ok) {
+        // If refresh fails, clear stored tokens
+        clearTokens();
+        return null;
+      }
+  
+      const data = await response.json();
+      
+      // Update stored tokens
+      setTokens(data.access, tokens.refresh);
+      
+      return data.access;
+    } catch (error) {
+      console.error('Token refresh failed:', error);
+      clearTokens();
+      return null;
+    }
+  }
+  
+  /**
+   * Make authenticated API request with automatic token refresh
+   */
+  export async function authenticatedFetch(
+    url: string, 
+    options: RequestInit = {}
+  ): Promise<Response> {
+    let tokens = getStoredTokens();
+    
+    // Check if we have tokens
+    if (!tokens || !tokens.access) {
+      console.error('No access token available');
+      throw new AuthError('Authentication required', 401);
+    }
+    
+    // Refresh token if expired or expiring soon
+    if (!isTokenValid(tokens.access) || isTokenExpiringSoon(tokens.access)) {
+      console.log('Token expired or expiring soon, refreshing...');
+      const newToken = await refreshToken();
+      if (!newToken) {
+        console.error('Failed to refresh token');
+        throw new AuthError('Authentication required', 401);
+      }
+      tokens = getStoredTokens();
+    }
+  
+    // Ensure URL is absolute
+    const fullUrl = url.startsWith('http') ? url : getApiUrl(url);
+    
+    // Prepare headers
+    const headers = new Headers(options.headers);
+    if (!headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+    headers.set('Authorization', `Bearer ${tokens!.access}`);
+    
+    console.log(`Making authenticated request to: ${fullUrl}`);
+    
+    // Make the request with auth header
+    const response = await fetchWithTimeout(fullUrl, {
+      ...options,
+      headers,
+    });
+  
+    // If 401, try refreshing token once more
+    if (response.status === 401) {
+      const newToken = await refreshToken();
+      if (newToken) {
+        return fetchWithTimeout(url, {
+          ...options,
+          headers: {
+            ...options.headers,
+            'Authorization': `Bearer ${newToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      } else {
+        throw new AuthError('Authentication required', 401);
+      }
+    }
+  
+    return response;
+  }
+  
+  /**
+   * Get current user information
+   */
+  export async function getCurrentUser(): Promise<User | null> {
+    try {
+      // Try from storage first
+      const cachedUser = getStoredUser();
+      if (cachedUser) {
+        return cachedUser;
+      }
+  
+      // Fetch from API
+      const userUrl = getApiUrl('v1/users/me/');
+      console.log('Fetching current user from:', userUrl);
+      
+      const response = await authenticatedFetch(userUrl);
+      
+      if (!response.ok) {
+        console.error('Failed to fetch current user. Status:', response.status);
+        if (response.status === 401) {
+          console.log('Authentication required, clearing tokens');
+          clearTokens();
+        }
+        return null;
+      }
+  
+      const user: User = await response.json();
+      setCurrentUser(user);
+      return user;
+    } catch (error) {
+      if (error instanceof AuthError && error.status === 401) {
+        clearTokens();
+      }
+      return null;
+    }
+  }
+  
+  /**
+   * Update user profile
+   */
+  export async function updateUserProfile(updates: Partial<User>): Promise<User> {
+    try {
+      const profileUrl = getApiUrl('v1/users/me/');
+      console.log('Updating user profile with URL:', profileUrl);
+      
+      const response = await authenticatedFetch(profileUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new AuthError(errorData.message || 'Failed to update profile', response.status, errorData);
+      }
+  
+      const user: User = await response.json();
+      setCurrentUser(user);
+      return user;
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new NetworkError('Profile update failed');
+    }
+  }
+  
+  /**
+   * Change user password
+   */
+  export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    try {
+      const changePasswordUrl = getApiUrl('v1/users/change-password/');
+      console.log('Changing password with URL:', changePasswordUrl);
+      
+      const response = await authenticatedFetch(changePasswordUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 400) {
+          throw new ValidationError('Password change failed', errorData);
+        }
+        throw new AuthError(errorData.message || 'Password change failed', response.status);
+      }
+    } catch (error) {
+      if (error instanceof AuthError) throw error;
+      throw new NetworkError('Password change request failed');
+    }
+  }
+  
+  /**
+   * Logout user by clearing tokens and user data
+   */
+  export function logout(): void {
+    clearTokens();
+    
+    // Optional: Notify server about logout
+    const tokens = getStoredTokens();
+    if (tokens?.refresh) {
+      // Fire and forget - don't wait for response
+      fetch(`${API_URL}/auth/logout/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: tokens.refresh }),
+      }).catch(() => {
+        // Ignore errors - user is logging out anyway
+      });
+    }
+  }
+  
+  /**
+   * Check if user is currently authenticated
+   */
+  export function isAuthenticated(): boolean {
+    const tokens = getStoredTokens();
+    return !!(tokens?.access && isTokenValid(tokens.access));
+  }
+  
+  /**
+   * Get current access token
+   */
+  export function getAccessToken(): string | null {
+    const tokens = getStoredTokens();
+    return tokens?.access || null;
+  }
+  
+  /**
+   * Get current refresh token
+   */
+  export function getRefreshToken(): string | null {
+    const tokens = getStoredTokens();
+    return tokens?.refresh || null;
+  }
+  
+  /**
+   * Initialize authentication on app start
+   * Call this in your app initialization
+   */
+  export async function initializeAuth(): Promise<User | null> {
+    try {
+      if (!isAuthenticated()) {
+        return null;
+      }
+      
+      return await getCurrentUser();
+    } catch (error) {
+      console.warn('Auth initialization failed:', error);
+      clearTokens();
+      return null;
+    }
+  }
+  
+  // Event system for auth state changes
+  type AuthEventType = 'login' | 'logout' | 'token-refresh' | 'auth-error';
+  
+  // Define the event data types
+  interface LoginEventData { user: User }
+  interface LogoutEventData { reason?: string }
+  interface TokenRefreshEventData { token: string }
+  interface AuthErrorEventData { message: string, code?: string }
+  
+  // Create a type map for event types to their data
+  type EventDataMap = {
+    'login': LoginEventData,
+    'logout': LogoutEventData,
+    'token-refresh': TokenRefreshEventData,
+    'auth-error': AuthErrorEventData
+  };
+  
+  // Create separate handler maps for each event type
+  const loginHandlers = new Set<(data?: LoginEventData) => void>();
+  const logoutHandlers = new Set<(data?: LogoutEventData) => void>();
+  const tokenRefreshHandlers = new Set<(data?: TokenRefreshEventData) => void>();
+  const authErrorHandlers = new Set<(data?: AuthErrorEventData) => void>();
+  
+  /**
+   * Subscribe to auth events
+   */
+  export function onAuthEvent<T extends AuthEventType>(event: T, handler: (data?: EventDataMap[T]) => void): () => void {
+    switch (event) {
+      case 'login':
+        loginHandlers.add(handler as (data?: LoginEventData) => void);
+        return () => loginHandlers.delete(handler as (data?: LoginEventData) => void);
+      case 'logout':
+        logoutHandlers.add(handler as (data?: LogoutEventData) => void);
+        return () => logoutHandlers.delete(handler as (data?: LogoutEventData) => void);
+      case 'token-refresh':
+        tokenRefreshHandlers.add(handler as (data?: TokenRefreshEventData) => void);
+        return () => tokenRefreshHandlers.delete(handler as (data?: TokenRefreshEventData) => void);
+      case 'auth-error':
+        authErrorHandlers.add(handler as (data?: AuthErrorEventData) => void);
+        return () => authErrorHandlers.delete(handler as (data?: AuthErrorEventData) => void);
+    }
+  }
+  
+  /**
+   * Emit auth event
+   */
+  export function emitAuthEvent<T extends AuthEventType>(event: T, data?: EventDataMap[T]): void {
+    switch (event) {
+      case 'login':
+        loginHandlers.forEach(handler => {
+          try {
+            handler(data as LoginEventData);
+          } catch (error) {
+            console.error(`Error in login event handler:`, error);
+          }
+        });
+        break;
+      case 'logout':
+        logoutHandlers.forEach(handler => {
+          try {
+            handler(data as LogoutEventData);
+          } catch (error) {
+            console.error(`Error in logout event handler:`, error);
+          }
+        });
+        break;
+      case 'token-refresh':
+        tokenRefreshHandlers.forEach(handler => {
+          try {
+            handler(data as TokenRefreshEventData);
+          } catch (error) {
+            console.error(`Error in token-refresh event handler:`, error);
+          }
+        });
+        break;
+      case 'auth-error':
+        authErrorHandlers.forEach(handler => {
+          try {
+            handler(data as AuthErrorEventData);
+          } catch (error) {
+            console.error(`Error in auth-error event handler:`, error);
+          }
+        });
+        break;
+    }
+  }
