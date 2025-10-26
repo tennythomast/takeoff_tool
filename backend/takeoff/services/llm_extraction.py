@@ -192,41 +192,6 @@ class LLMExtractionService:
             universal_rules=rules
         )
     
-    async def _generate_continuation_prompt(self, original_prompt: str, previous_results: List[Dict[str, Any]]) -> str:
-        """
-        Generate a prompt to continue extraction
-        
-        Args:
-            original_prompt: Original extraction prompt
-            previous_results: Previously extracted elements
-            
-        Returns:
-            Continuation prompt
-        """
-        # Extract the element IDs that have already been processed
-        extracted_ids = [elem.get('element_id', '') for elem in previous_results]
-        extracted_ids_str = ', '.join(extracted_ids)
-        
-        # Extract element types that have been processed
-        extracted_types = set(elem.get('element_type', '') for elem in previous_results)
-        extracted_types_str = ', '.join(extracted_types)
-        
-        # Create a continuation prompt
-        continuation_prompt = f"{original_prompt}\n\n"
-        continuation_prompt += """\n\nCONTINUATION REQUEST:\n"""
-        continuation_prompt += f"I've already extracted {len(previous_results)} elements with IDs: {extracted_ids_str}.\n"
-        continuation_prompt += f"Element types already processed include: {extracted_types_str}.\n\n"
-        continuation_prompt += "IMPORTANT INSTRUCTIONS:\n"
-        continuation_prompt += "1. Extract ALL REMAINING concrete elements from the document that haven't been processed yet.\n"
-        continuation_prompt += "2. Do NOT repeat elements that have already been extracted.\n"
-        continuation_prompt += "3. Focus on elements like P.PF series footings, additional beams, and any other concrete elements.\n"
-        continuation_prompt += "4. Continue extraction until ALL elements in the document are processed.\n"
-        continuation_prompt += "5. Do not stop extraction early or provide only a sample of elements.\n"
-        continuation_prompt += "6. Return the complete JSON array of all remaining elements.\n\n"
-        continuation_prompt += "If there are no more elements to extract, simply return an empty JSON array [].\n"
-        
-        return continuation_prompt
-    
     async def _call_llm(
         self,
         prompt: str,
@@ -281,38 +246,7 @@ class LLMExtractionService:
             'processing_time_ms': metadata.get('performance', {}).get('total_time_ms', 0)
         }
     
-    def _detect_continuation_request(self, response_text: str) -> bool:
-        """
-        Detect if the LLM is asking to continue extraction
-        
-        Args:
-            response_text: Raw LLM response text
-            
-        Returns:
-            True if continuation is requested, False otherwise
-        """
-        # Common phrases that indicate the LLM wants to continue
-        continuation_phrases = [
-            "continue with additional elements",
-            "continue extracting",
-            "would you like me to continue",
-            "there are more elements",
-            "can continue with",
-            "i can continue",
-            "proceed with more",
-            "extract the remaining"
-        ]
-        
-        # Check if any continuation phrase is in the response
-        lower_text = response_text.lower()
-        for phrase in continuation_phrases:
-            if phrase in lower_text:
-                logger.info(f"Detected continuation request: '{phrase}'")
-                return True
-                
-        return False
-    
-    def _process_extraction_results(self, llm_response: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], bool]:
+    def _process_extraction_results(self, llm_response: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
         Process and validate extraction results from LLM
         
@@ -320,17 +254,17 @@ class LLMExtractionService:
             llm_response: Raw LLM response
             
         Returns:
-            Tuple of (extraction_results, continuation_requested)
+            List of extracted elements
         """
         # Handle empty or invalid responses
         if not llm_response or not isinstance(llm_response, dict):
             logger.warning("Empty or invalid LLM response")
-            return [], False
+            return []
             
         response_text = llm_response.get('text', '')
         if not response_text:
             logger.warning("Empty text in LLM response")
-            return [], False
+            return []
         
         # Log the raw response for debugging
         logger.info(f"Raw LLM response length: {len(response_text)} characters")
@@ -372,7 +306,7 @@ class LLMExtractionService:
                 logger.info("Detected table format response, parsing...")
                 extraction_results = self._parse_table_to_json(response_text)
                 logger.info(f"Successfully parsed table with {len(extraction_results)} elements")
-                return extraction_results, False
+                return extraction_results
             
             # Otherwise, try JSON format
             # Find JSON array in the response
@@ -381,7 +315,7 @@ class LLMExtractionService:
             if json_start == -1:
                 logger.warning("No JSON array or table found in LLM response")
                 logger.warning(f"Response text preview: {response_text[:1000]}")
-                return [], False
+                return []
             
             # Try to parse the JSON array
             try:
@@ -432,12 +366,12 @@ class LLMExtractionService:
                 
                 if not extraction_results:
                     logger.warning("Failed to parse any elements from the response")
-                    return [], False
+                    return []
             
             # Validate results
             if not isinstance(extraction_results, list):
                 logger.warning("Extraction results is not a list")
-                return [], False
+                return []
             
             # Filter out items with confidence < 0.7
             valid_results = [
@@ -452,19 +386,14 @@ class LLMExtractionService:
             
             logger.info(f"Final extraction result count: {len(valid_results)} elements")
             
-            # Check if the LLM is asking to continue extraction
-            continuation_requested = self._detect_continuation_request(response_text)
-            if continuation_requested:
-                logger.info("LLM has indicated there are more elements to extract")
-            
-            return valid_results, continuation_requested
+            return valid_results
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from LLM response: {e}")
-            return [], False
+            return []
         except Exception as e:
             logger.error(f"Error processing extraction results: {e}")
-            return [], False
+            return []
     
     @sync_to_async
     def _get_drawing(self, drawing_id: str) -> Optional[Drawing]:
@@ -618,67 +547,7 @@ class LLMExtractionService:
             logger.info(f"Raw LLM response saved to: {response_file}")
             
             # Process extraction results
-            extraction_results, continuation_requested = self._process_extraction_results(llm_response)
-            
-            # Handle continuation if requested by the LLM - with multiple rounds if needed
-            if continuation_requested and extraction_results:
-                logger.info("LLM has requested to continue extraction. Starting continuation process...")
-                
-                # Track all extracted elements
-                all_extracted_elements = extraction_results.copy()
-                
-                # Continue extracting until no more continuation is requested
-                max_continuation_rounds = 3  # Limit to prevent infinite loops
-                continuation_round = 0
-                
-                while continuation_requested and continuation_round < max_continuation_rounds:
-                    continuation_round += 1
-                    logger.info(f"Starting continuation round {continuation_round}...")
-                    
-                    # Generate continuation prompt with all extracted elements so far
-                    continuation_prompt = await self._generate_continuation_prompt(prompt, all_extracted_elements)
-                    
-                    # Call LLM again with continuation prompt
-                    continuation_response = await self._call_llm(continuation_prompt, model_name, trade)
-                    
-                    # Process continuation results and check if more continuation is requested
-                    continuation_results, more_continuation = self._process_extraction_results(continuation_response)
-                    
-                    # Log continuation results
-                    logger.info(f"Continuation round {continuation_round} returned {len(continuation_results)} additional elements")
-                    
-                    # Add new elements to the combined results
-                    if continuation_results:
-                        # Check for duplicates before adding
-                        new_element_ids = set(elem.get('element_id', '') for elem in continuation_results)
-                        existing_element_ids = set(elem.get('element_id', '') for elem in all_extracted_elements)
-                        
-                        # Only add elements with new IDs
-                        unique_new_elements = [elem for elem in continuation_results 
-                                             if elem.get('element_id', '') not in existing_element_ids]
-                        
-                        if unique_new_elements:
-                            logger.info(f"Adding {len(unique_new_elements)} unique new elements")
-                            all_extracted_elements.extend(unique_new_elements)
-                            logger.info(f"Total elements after round {continuation_round}: {len(all_extracted_elements)}")
-                        else:
-                            logger.info("No new unique elements found in this continuation round")
-                            # Break the loop if no new elements were found
-                            break
-                    else:
-                        logger.info("No additional elements returned in this continuation round")
-                        break
-                    
-                    # Update continuation flag for next iteration
-                    continuation_requested = more_continuation
-                    
-                    # If we've reached the maximum number of rounds, log a warning
-                    if continuation_round == max_continuation_rounds and more_continuation:
-                        logger.warning(f"Reached maximum continuation rounds ({max_continuation_rounds}). Some elements may be missing.")
-                
-                # Use the combined results from all rounds
-                extraction_results = all_extracted_elements
-                logger.info(f"Final combined extraction results: {len(extraction_results)} elements from {continuation_round + 1} rounds")
+            extraction_results = self._process_extraction_results(llm_response)
             
             # Update extraction record with results
             await self._update_extraction_record(
