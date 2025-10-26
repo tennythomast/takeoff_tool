@@ -157,11 +157,6 @@ N16-200 → bar_size: "N16", spacing_mm: 200 (dash notation)
 T&B → "top_and_bottom"
 L & T → "longitudinal_and_transverse"
 
-ANNOTATIONS:
-(E) → Existing
-(N) → New
-TYP → Typical (applies to multiple similar elements)
-UNO → Unless Noted Otherwise
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CRITICAL EXTRACTION RULES:
@@ -186,67 +181,63 @@ QUALITY CHECKS:
 ✓ Are all visible reinforcement layers captured?
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OUTPUT FORMAT:
+OUTPUT FORMAT (TABLE - ULTRA COMPACT):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Return JSON array (one object per element):
+Return a CSV-style table with pipe delimiters. One row per element.
 
-[
-  {
-    "element_id": "F-01",
-    "element_type": "IsolatedFooting",
-    "page_number": 2,
-    "confidence_score": 0.95,
-    
-    "specifications": {
-      "dimensions": {
-        "width_mm": 1200,
-        "length_mm": 1500,
-        "depth_mm": 600,
-        "pedestal_width_mm": null,
-        "pedestal_height_mm": null
-      },
-      "reinforcement": {
-        "bottom": {
-          "bar_size": "N16",
-          "spacing_mm": 200,
-          "direction": "both_ways",
-          "quantity": null,
-          "length_m": null
-        },
-        "top": null
-      },
-      "concrete": {
-        "grade": "N32",
-        "cover_mm": {
-          "bottom": 75,
-          "top": null,
-          "sides": null
-        },
-        "volume_m3": null
-      },
-      "excavation": {
-        "depth_mm": null,
-        "volume_m3": null
-      }
-    },
-    
-    "extraction_notes": {
-      "source_references": ["Page 2, Footing Schedule, Row 1"],
-      "missing_fields": ["reinforcement.bottom.quantity", "concrete.volume_m3"],
-      "assumptions_made": ["Direction 'B.W' interpreted as both_ways"],
-      "validation_warnings": [],
-      "applies_to_typical": null
-    }
-  }
-]
+HEADER ROW (always include):
+ID|TYPE|PAGE|QTY|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
+
+DATA ROWS:
+- Use pipe | as delimiter
+- Use dash - for missing/not applicable values
+- Dimensions in mm (numbers only)
+- Reinforcement: bar_size@spacing or fabric_type (e.g., N16@200, SL92, 4N20)
+- Multiple values in same field: use semicolon (e.g., "N16@200;N12@300")
+- Notes: brief, key info only
+
+EXAMPLE:
+```
+ID|TYPE|PAGE|QTY|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
+PF.1|IsolatedFooting|1|1|900|900|600|SL92|-|-|N32|40|-|Grid A1|Zone A|Ground|-|Standard pad
+PF.2|IsolatedFooting|1|3|1200|1200|600|SL102|-|-|N32|40|-|Grid B2-B4|Zone A|Ground|TYP|Typical pad
+C1|RectangularColumn|2|8|400|400|3000|8N20|-|N12@150|N32|50|F2|Grid lines|Zone B|L1-L3|TYP|Typical column
+BM1|RectangularBeam|2|1|300|600|-|2N16|3N20|-|N32|40|-|Grid A-B|Zone A|Level 1|-|Main beam
+SF1|StripFooting|1|15m|1000|-|650|N16@200|N16@200|-|N32|75|-|Perimeter|All|Ground|-|Continuous footing
+```
+
+COLUMN DEFINITIONS:
+- ID: Element mark/designation (e.g., PF.1, C-12, BM-A-23)
+- TYPE: Element type (IsolatedFooting, RectangularColumn, RectangularBeam, etc.)
+- PAGE: Page number where element is shown
+- QTY: Quantity (number of identical elements, or length for linear elements with unit)
+- WIDTH: Width in mm
+- LENGTH: Length in mm (or height for vertical elements)
+- DEPTH: Depth/thickness in mm
+- TOP_REINF: Top/main reinforcement (format: bar_size@spacing or fabric or quantity+size)
+- BOT_REINF: Bottom/secondary reinforcement
+- SIDE_REINF: Side/transverse reinforcement (ties, stirrups, links)
+- GRADE: Concrete grade (N20, N25, N32, N40, N50, N65)
+- COVER: Concrete cover in mm (single value or specify if varies)
+- FINISH: Surface finish (F1=trowel, F2=float, F3=broom, F4=off-form, etc.)
+- LOCATION: Physical location (grid lines, area description)
+- ZONE: Building zone or area designation
+- LEVEL: Floor/level designation (Ground, L1, L2, Roof, etc.)
+- TYPICAL: Mark as TYP if typical/repeated element, or note what it's typical to
+- NOTES: Critical info (embedment, special conditions, references to details)
 
 RESPONSE REQUIREMENTS:
-- Include ALL concrete elements found (don't limit to certain types)
+- **CRITICAL**: Extract ALL concrete elements. Do NOT stop after a few examples.
+- If you see a schedule/table with multiple rows, extract EVERY row
 - Only include elements with confidence >= 0.7
-- Use null for missing fields (not 0, "", or false)
-- Always populate extraction_notes with source_references
-- Return empty array [] if no concrete elements found
+- Use dash - for missing/unknown values
+- Keep NOTES column brief (max 50 chars)
+- Output ONLY the table, no explanatory text before or after
+- Include the header row first, then all data rows
+
+IMPORTANT: Your response must be ONLY the pipe-delimited table.
+Do not include markdown code fences, explanations, or any other text.
 
 BEGIN EXTRACTION:
 """

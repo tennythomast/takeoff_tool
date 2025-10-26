@@ -94,10 +94,12 @@ class TakeoffElement(SoftDeletableMixin):
     # Element identification
     element_id = models.CharField(max_length=100, db_index=True)
     element_type = models.CharField(max_length=100, db_index=True)
+    page_number = models.IntegerField(default=1, help_text='Page number where this element was found')
     
     # JSON! Flexible, extensible, queryable
     specifications = models.JSONField(default=dict)
     location = models.JSONField(default=dict, blank=True)
+    extraction_notes = models.JSONField(default=dict, blank=True, help_text='Notes and metadata from the extraction process')
     
     # Metadata
     confidence_score = models.FloatField(default=0.0)
@@ -122,6 +124,7 @@ class TakeoffElement(SoftDeletableMixin):
             models.Index(fields=['drawing', 'element_type']),
             models.Index(fields=['element_id']),
             models.Index(fields=['verified']),
+            models.Index(fields=['page_number']),
         ]
         unique_together = ['drawing', 'element_id']
     

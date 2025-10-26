@@ -252,13 +252,13 @@ class LLMExtractionService:
             user_id="system",  # System-initiated extraction
             # Note: quality_critical=True is used instead of optimization_strategy
             quality_critical=True,  # Use high-quality models for extraction
-            max_tokens=30000  # Balanced limit to ensure all elements can be extracted
+            max_tokens=8000  # Allow for more detailed extraction with more elements
         )
         
         # Add metadata for additional context
         request_context.metadata = {
             "complexity_score": 0.8,  # Engineering drawings are complex
-            "expected_output_tokens": 12000,  # Increased to accommodate all elements
+            "expected_output_tokens": 6000,  # Increased for larger extraction responses
             "model_name": model_name,  # Specific model if provided
             "temperature": 0.1,  # Low temperature for deterministic extraction
             "timeout_seconds": 180  # Allow up to 3 minutes for extraction
@@ -333,55 +333,13 @@ class LLMExtractionService:
             logger.warning("Empty text in LLM response")
             return [], False
         
-        # Log the raw response for debugging
-        logger.info(f"Raw LLM response length: {len(response_text)} characters")
-        logger.info(f"First 500 characters: {response_text[:500]}")
-        logger.info(f"Last 500 characters: {response_text[-500:]}")
-        
-        # Save raw response to file for analysis
+        # Extract JSON from response
         try:
-            import os
-            from datetime import datetime
-            output_dir = "/app/backend/takeoff/tests/output"
-            os.makedirs(output_dir, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            raw_file = os.path.join(output_dir, f"raw_llm_response_{timestamp}.txt")
-            with open(raw_file, 'w') as f:
-                f.write(response_text)
-            logger.info(f"Saved raw LLM response to: {raw_file}")
-        except Exception as e:
-            logger.warning(f"Failed to save raw response: {e}")
-        
-        # Extract data from response
-        try:
-            # Remove markdown code fences if present
-            # LLMs often wrap content in ```json ... ``` or ``` ... ```
-            if response_text.strip().startswith('```'):
-                # Find the first newline after the opening fence
-                first_newline = response_text.find('\n')
-                if first_newline != -1:
-                    response_text = response_text[first_newline + 1:]
-                
-                # Remove the closing fence
-                if response_text.strip().endswith('```'):
-                    response_text = response_text[:response_text.rfind('```')]
-                
-                logger.info("Removed markdown code fences from response")
-            
-            # Check if response is in table format (pipe-delimited)
-            if '|' in response_text and 'ID|TYPE' in response_text:
-                logger.info("Detected table format response, parsing...")
-                extraction_results = self._parse_table_to_json(response_text)
-                logger.info(f"Successfully parsed table with {len(extraction_results)} elements")
-                return extraction_results, False
-            
-            # Otherwise, try JSON format
             # Find JSON array in the response
             json_start = response_text.find('[')
             
             if json_start == -1:
-                logger.warning("No JSON array or table found in LLM response")
-                logger.warning(f"Response text preview: {response_text[:1000]}")
+                logger.warning("No JSON array found in LLM response")
                 return [], False
             
             # Try to parse the JSON array
@@ -390,12 +348,9 @@ class LLMExtractionService:
                 json_str = response_text[json_start:]
                 extraction_results = json.loads(json_str)
                 logger.info(f"Successfully parsed complete JSON array with {len(extraction_results)} elements")
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 # If that fails, try to parse individual elements
-                logger.warning(f"Complete JSON array parsing failed: {str(e)}")
-                logger.warning(f"JSON parse error at position {e.pos}: {e.msg}")
-                logger.warning(f"JSON string around error (chars {max(0, e.pos-100)}:{e.pos+100}): {json_str[max(0, e.pos-100):e.pos+100]}")
-                logger.warning("Trying to parse individual elements")
+                logger.warning("Complete JSON array parsing failed, trying to parse individual elements")
                 
                 # Extract complete elements one by one
                 elements = []
@@ -689,11 +644,8 @@ class LLMExtractionService:
                 cost_usd=llm_response.get('cost_usd', 0)
             )
             
-            # Normalize compact format (add defaults for omitted fields)
-            normalized_results = [self._normalize_compact_format(elem) for elem in extraction_results]
-            
             # Create element objects
-            await self._create_element_objects(extraction, normalized_results)
+            await self._create_element_objects(extraction, extraction_results)
             
             return {
                 'success': True,
@@ -719,169 +671,11 @@ class LLMExtractionService:
                 'extraction_id': str(extraction.id)
             }
     
-    def _parse_table_to_json(self, table_text: str) -> List[Dict]:
-        """
-        Parse pipe-delimited table format to JSON.
-        
-        Expected format:
-        ID|TYPE|PAGE|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|GRADE|COVER|NOTES
-        PF.1|IsolatedFooting|1|900|900|600|SL92|-|N32|40|Pad footing
-        """
-        lines = table_text.strip().split('\n')
-        if len(lines) < 2:
-            logger.warning("Table has no data rows")
-            return []
-        
-        # Parse header
-        header = [col.strip() for col in lines[0].split('|')]
-        logger.info(f"Table header: {header}")
-        
-        # Parse data rows
-        results = []
-        for i, line in enumerate(lines[1:], start=1):
-            if not line.strip():
-                continue
-                
-            values = [val.strip() for val in line.split('|')]
-            if len(values) != len(header):
-                logger.warning(f"Row {i} has {len(values)} columns, expected {len(header)}: {line}")
-                continue
-            
-            # Create element dict
-            row_dict = dict(zip(header, values))
-            
-            # Convert to standard JSON format
-            element = {
-                "element_id": row_dict.get('ID', ''),
-                "element_type": row_dict.get('TYPE', ''),
-                "page_number": int(row_dict.get('PAGE', 1)) if row_dict.get('PAGE', '').isdigit() else 1,
-                "confidence_score": 1.0,  # Table format doesn't include confidence
-                "specifications": {
-                    "dimensions": {},
-                    "reinforcement": {},
-                    "concrete": {},
-                    "quantity": {},
-                    "location": {},
-                    "finish": {}
-                },
-                "extraction_notes": {
-                    "source_references": [f"Page {row_dict.get('PAGE', 1)}"],
-                    "missing_fields": [],
-                    "assumptions_made": [],
-                    "validation_warnings": [],
-                    "typical": row_dict.get('TYPICAL', '-') if row_dict.get('TYPICAL') != '-' else None
-                }
-            }
-            
-            # Parse dimensions
-            if row_dict.get('WIDTH') and row_dict['WIDTH'] != '-':
-                element['specifications']['dimensions']['width_mm'] = int(row_dict['WIDTH'])
-            if row_dict.get('LENGTH') and row_dict['LENGTH'] != '-':
-                element['specifications']['dimensions']['length_mm'] = int(row_dict['LENGTH'])
-            if row_dict.get('DEPTH') and row_dict['DEPTH'] != '-':
-                element['specifications']['dimensions']['depth_mm'] = int(row_dict['DEPTH'])
-            
-            # Parse quantity
-            if row_dict.get('QTY') and row_dict['QTY'] != '-':
-                qty_str = row_dict['QTY']
-                # Check if it's a length (e.g., "15m")
-                if 'm' in qty_str.lower():
-                    element['specifications']['quantity']['length'] = qty_str
-                    element['specifications']['quantity']['unit'] = 'linear_meters'
-                elif qty_str.isdigit():
-                    element['specifications']['quantity']['count'] = int(qty_str)
-                    element['specifications']['quantity']['unit'] = 'number'
-                else:
-                    element['specifications']['quantity']['value'] = qty_str
-            
-            # Parse reinforcement
-            if row_dict.get('TOP_REINF') and row_dict['TOP_REINF'] != '-':
-                element['specifications']['reinforcement']['top'] = self._parse_reinforcement(row_dict['TOP_REINF'])
-            if row_dict.get('BOT_REINF') and row_dict['BOT_REINF'] != '-':
-                element['specifications']['reinforcement']['bottom'] = self._parse_reinforcement(row_dict['BOT_REINF'])
-            if row_dict.get('SIDE_REINF') and row_dict['SIDE_REINF'] != '-':
-                element['specifications']['reinforcement']['side'] = self._parse_reinforcement(row_dict['SIDE_REINF'])
-            
-            # Parse concrete
-            if row_dict.get('GRADE') and row_dict['GRADE'] != '-':
-                element['specifications']['concrete']['grade'] = row_dict['GRADE']
-            if row_dict.get('COVER') and row_dict['COVER'] != '-':
-                cover_str = row_dict['COVER']
-                if cover_str.isdigit():
-                    element['specifications']['concrete']['cover_mm'] = int(cover_str)
-                else:
-                    # Handle complex cover specifications
-                    element['specifications']['concrete']['cover_description'] = cover_str
-            
-            # Parse finish
-            if row_dict.get('FINISH') and row_dict['FINISH'] != '-':
-                element['specifications']['finish']['type'] = row_dict['FINISH']
-            
-            # Parse location details
-            if row_dict.get('LOCATION') and row_dict['LOCATION'] != '-':
-                element['specifications']['location']['description'] = row_dict['LOCATION']
-            if row_dict.get('ZONE') and row_dict['ZONE'] != '-':
-                element['specifications']['location']['zone'] = row_dict['ZONE']
-            if row_dict.get('LEVEL') and row_dict['LEVEL'] != '-':
-                element['specifications']['location']['level'] = row_dict['LEVEL']
-            
-            # Add notes
-            if row_dict.get('NOTES') and row_dict['NOTES'] != '-':
-                element['extraction_notes']['description'] = row_dict['NOTES']
-            
-            results.append(element)
-            logger.info(f"Parsed element {i}: {element['element_id']}")
-        
-        return results
-    
-    def _parse_reinforcement(self, reinf_str: str) -> Dict:
-        """Parse reinforcement string like 'N16@200' or 'SL92'"""
-        if '@' in reinf_str:
-            # Format: bar_size@spacing
-            parts = reinf_str.split('@')
-            return {
-                'bar_size': parts[0],
-                'spacing_mm': int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None,
-                'direction': 'both_ways'
-            }
-        else:
-            # Format: fabric type
-            return {
-                'fabric_type': reinf_str,
-                'direction': 'both_ways'
-            }
-    
-    def _normalize_compact_format(self, element: Dict) -> Dict:
-        """
-        Normalize compact format where null fields are omitted.
-        Ensures all required fields exist with proper defaults.
-        """
-        # Ensure top-level fields exist
-        element.setdefault('page_number', 1)
-        element.setdefault('confidence_score', 0.0)
-        element.setdefault('specifications', {})
-        element.setdefault('extraction_notes', {})
-        
-        # Normalize specifications
-        specs = element['specifications']
-        specs.setdefault('dimensions', {})
-        specs.setdefault('reinforcement', {})
-        specs.setdefault('concrete', {})
-        
-        # Normalize extraction_notes
-        notes = element['extraction_notes']
-        notes.setdefault('source_references', [])
-        notes.setdefault('missing_fields', [])
-        notes.setdefault('assumptions_made', [])
-        notes.setdefault('validation_warnings', [])
-        
-        return element
-    
     @sync_to_async
     def _create_element_objects(
         self,
         extraction: TakeoffExtraction,
-        results: List[Dict]
+        results: List[Dict[str, Any]]
     ) -> None:
         """Create TakeoffElement objects from extraction results"""
         with transaction.atomic():
@@ -900,7 +694,6 @@ class LLMExtractionService:
                 # Create element object
                 TakeoffElement.objects.create(
                     extraction=extraction,
-                    drawing=extraction.drawing,
                     element_id=element_id,
                     element_type=element_type,
                     page_number=result.get('page_number', 1),

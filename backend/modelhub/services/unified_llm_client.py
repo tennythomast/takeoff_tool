@@ -84,17 +84,23 @@ class OpenAIProvider(BaseLLMProvider):
         provider_slug = kwargs.get('provider_slug', 'openai')
         base_url = None
         
+        logger.info(f"OpenAIProvider.call_api - provider_slug: {provider_slug}")
+        
         if provider_slug != 'openai':
             # Get custom base URL for OpenAI-compatible providers
             provider_config = await UnifiedLLMClient._get_provider_config(provider_slug)
+            logger.info(f"Provider config for {provider_slug}: {provider_config}")
             if provider_config and provider_config.get('config'):
                 base_url = provider_config['config'].get('base_url')
+                logger.info(f"Extracted base_url: {base_url}")
         
         # Create client with optional custom base URL
         client_kwargs = {'api_key': api_key}
         if base_url:
             client_kwargs['base_url'] = base_url
             logger.info(f"Using custom base URL for {provider_slug}: {base_url}")
+        else:
+            logger.warning(f"No base_url set for {provider_slug}, will use default OpenAI endpoint")
         
         try:
             client = AsyncOpenAI(**client_kwargs)

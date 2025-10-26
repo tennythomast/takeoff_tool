@@ -1,0 +1,17 @@
+ID|TYPE|PAGE|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|GRADE|COVER|NOTES
+PF.1|IsolatedFooting|1|900|900|600|SL92|-|N32|40|Pad footing
+PF.2|IsolatedFooting|1|1200|1200|600|SL102|-|N32|40|Pad footing
+PF.3|IsolatedFooting|1|1200|750|600|SL92|SL92|N32|40|Pad footing
+PF.8|IsolatedFooting|1|1500|1500|600|SL102|SL102|N32|40|Pad footing
+PF.9|IsolatedFooting|1|1200|1200|600|SL102|SL102|N32|40|Pad footing
+SF.1|StripFooting|1|1000|-|650|-|-|N32|40|Strip footing
+EB.1|LShapedBeam|1|450|-|600|2N12|4L12TM|N32|40|Edge beam
+EB.2|LShapedBeam|1|600|-|600|3N12|6L12TM|N32|40|Edge beam
+IB.1|RectangularBeam|1|300|-|600|2N12|3L12TM|N32|40|Internal beam
+IB.2|RectangularBeam|1|450|-|600|2N12|4L12TM|N32|40|Internal beam
+IB.3|RectangularBeam|1|600|-|600|3N12|6L12TM|N32|40|Internal beam
+P.PF1|IsolatedFooting|1|1800|1800|750|SL92|SL92|N32|50|Pool house pad footing
+P.PF2|IsolatedFooting|1|900|900|750|SL102|SL102|N32|50|Pool house pad footing
+P.PF3|IsolatedFooting|1|1200|1200|750|SL102|SL102|N32|50|Pool house pad footing
+BP.1|PileCap|1|450|450|1900|6N12|N10@150|N32|50|Bored pier; bypass fill; embed into clay
+SLAB|Slab|1|-|-|200|N16@200|N12@200|N32|40|Raft slab; SL92 fabric top

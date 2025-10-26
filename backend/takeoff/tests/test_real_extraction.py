@@ -129,7 +129,12 @@ async def run_test():
         result = await service.extract_elements(
             drawing_id=str(drawing.id),
             trade="concrete"
+            # Let the router select the model automatically
         )
+        
+        # Add a longer delay to allow RunPod more time to fully process the request
+        print("Waiting for extraction to complete (60 seconds)...")
+        await asyncio.sleep(60)  # Wait 60 seconds to ensure we get the full response
         
         # Check the result
         print(f"Extraction result: {result}")
@@ -155,6 +160,7 @@ async def run_test():
             os.makedirs(output_dir, exist_ok=True)
             
             # Create a timestamp for the filename
+            from datetime import datetime
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             output_file = os.path.join(output_dir, f'extraction_results_{timestamp}.json')
             
