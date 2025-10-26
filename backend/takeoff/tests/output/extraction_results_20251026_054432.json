@@ -1,0 +1,254 @@
+{
+  "metadata": {
+    "extraction_id": "a83cd001-49ed-4c92-9883-937ee84dec71",
+    "drawing_id": "a80745bb-7ab6-4d5e-bebe-bbecfc77edef",
+    "document_id": "dd3c9b6a-0651-4b60-b7f6-a92c17cc1c2a",
+    "drawing_title": "test_file3.pdf",
+    "drawing_number": "TEST-49ea1c",
+    "page_count": 36,
+    "timestamp": "2025-10-26T05:44:32.543705",
+    "extraction_status": "completed",
+    "processing_time_ms": 7754,
+    "element_count": 3,
+    "raw_element_count": 3
+  },
+  "elements": [
+    {
+      "element_id": "PB5",
+      "element_type": "Beam",
+      "specifications": {
+        "concrete": {
+          "grade": "N25",
+          "cover_mm": {
+            "top": null,
+            "sides": null,
+            "bottom": 50
+          },
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": null,
+          "width_mm": null,
+          "length_mm": null
+        },
+        "reinforcement": {
+          "top": null,
+          "bottom": {
+            "bar_size": "N24",
+            "quantity": 25,
+            "direction": "bottom",
+            "spacing_mm": 200
+          }
+        }
+      },
+      "confidence_score": 0.9
+    },
+    {
+      "element_id": "OC1",
+      "element_type": "Column",
+      "specifications": {
+        "concrete": {
+          "grade": "N32",
+          "cover_mm": {
+            "top": 50,
+            "sides": null,
+            "bottom": 75
+          },
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": null,
+          "width_mm": null,
+          "length_mm": null
+        },
+        "reinforcement": {
+          "top": {
+            "bar_size": "N16",
+            "quantity": null,
+            "direction": "vertical",
+            "spacing_mm": 200
+          },
+          "bottom": {
+            "bar_size": "N20",
+            "quantity": null,
+            "direction": "vertical",
+            "spacing_mm": 150
+          }
+        }
+      },
+      "confidence_score": 0.95
+    },
+    {
+      "element_id": "SS1",
+      "element_type": "Staircase",
+      "specifications": {
+        "concrete": {
+          "grade": "N40",
+          "cover_mm": {
+            "top": null,
+            "sides": null,
+            "bottom": 30
+          },
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": null,
+          "width_mm": null,
+          "length_mm": null
+        },
+        "reinforcement": {
+          "top": null,
+          "bottom": {
+            "bar_size": "N12",
+            "quantity": null,
+            "direction": "both_ways",
+            "spacing_mm": 200
+          }
+        }
+      },
+      "confidence_score": 0.85
+    }
+  ],
+  "raw_elements": [
+    {
+      "element_id": "OC1",
+      "element_type": "Column",
+      "page_number": 32,
+      "confidence_score": 0.95,
+      "specifications": {
+        "dimensions": {
+          "width_mm": null,
+          "length_mm": null,
+          "depth_mm": null
+        },
+        "reinforcement": {
+          "bottom": {
+            "bar_size": "N20",
+            "spacing_mm": 150,
+            "quantity": null,
+            "direction": "vertical"
+          },
+          "top": {
+            "bar_size": "N16",
+            "spacing_mm": 200,
+            "quantity": null,
+            "direction": "vertical"
+          }
+        },
+        "concrete": {
+          "grade": "N32",
+          "cover_mm": {
+            "bottom": 75,
+            "top": 50,
+            "sides": null
+          },
+          "volume_m3": null
+        }
+      },
+      "extraction_notes": {
+        "source_references": [
+          "Page 32, Office Column Base Plate Details"
+        ],
+        "missing_fields": [
+          "dimensions",
+          "reinforcement.bottom.quantity",
+          "reinforcement.top.quantity",
+          "concrete.volume_m3"
+        ],
+        "assumptions_made": [],
+        "validation_warnings": [],
+        "applies_to_typical": null
+      }
+    },
+    {
+      "element_id": "PB5",
+      "element_type": "Beam",
+      "page_number": 33,
+      "confidence_score": 0.9,
+      "specifications": {
+        "dimensions": {
+          "width_mm": null,
+          "length_mm": null,
+          "depth_mm": null
+        },
+        "reinforcement": {
+          "bottom": {
+            "bar_size": "N24",
+            "spacing_mm": 200,
+            "quantity": 25,
+            "direction": "bottom"
+          },
+          "top": null
+        },
+        "concrete": {
+          "grade": "N25",
+          "cover_mm": {
+            "bottom": 50,
+            "top": null,
+            "sides": null
+          },
+          "volume_m3": null
+        }
+      },
+      "extraction_notes": {
+        "source_references": [
+          "Page 33, Office First Floor Beam Splice Details"
+        ],
+        "missing_fields": [
+          "dimensions",
+          "reinforcement.top",
+          "concrete.volume_m3"
+        ],
+        "assumptions_made": [],
+        "validation_warnings": [
+          "Quantity specified for bottom reinforcement"
+        ],
+        "applies_to_typical": null
+      }
+    },
+    {
+      "element_id": "SS1",
+      "element_type": "Staircase",
+      "page_number": 36,
+      "confidence_score": 0.85,
+      "specifications": {
+        "dimensions": {
+          "width_mm": null,
+          "length_mm": null,
+          "depth_mm": null
+        },
+        "reinforcement": {
+          "bottom": {
+            "bar_size": "N12",
+            "spacing_mm": 200,
+            "quantity": null,
+            "direction": "both_ways"
+          },
+          "top": null
+        },
+        "concrete": {
+          "grade": "N40",
+          "cover_mm": {
+            "bottom": 30,
+            "top": null,
+            "sides": null
+          },
+          "volume_m3": null
+        }
+      },
+      "extraction_notes": {
+        "source_references": [
+          "Page 36, Stair Details - Sheet 2"
+        ],
+        "missing_fields": [
+          "dimensions",
+          "reinforcement.bottom.quantity",
+          "concrete.volume_m3"
+        ],
+        "assumptions_made": [],
+        "validation_warnings": [],
+        "applies_to_typical": null
+      }
+    }
+  ]
+}

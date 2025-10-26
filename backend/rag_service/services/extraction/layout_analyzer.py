@@ -6,7 +6,7 @@ This module now uses the UnifiedExtractor for vision-based layout analysis to av
 
 import logging
 import asyncio
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from dataclasses import dataclass
 from enum import Enum
 
@@ -59,7 +59,7 @@ class LayoutAnalyzer:
         file_path: str,
         organization=None,
         method: str = 'auto'
-    ) -> List[LayoutBlock]:
+    ) -> Dict[str, Any]:
         """
         Analyze document layout and return structured blocks.
         
@@ -69,7 +69,10 @@ class LayoutAnalyzer:
             method: 'rule_based', 'vision', or 'auto'
         
         Returns:
-            List of LayoutBlock objects in reading order
+            Dictionary containing:
+            - layout_blocks: List of layout blocks as dicts with page info
+            - layout_by_page: Dict organizing blocks by page number
+            - raw_blocks: Original LayoutBlock objects
         """
         
         if method == 'auto':
@@ -88,7 +91,37 @@ class LayoutAnalyzer:
         # Sort by reading order
         blocks.sort(key=lambda b: (b.page, b.reading_order))
         
-        return blocks
+        # Organize blocks by page
+        layout_by_page = {}
+        flat_blocks = []
+        
+        for block in blocks:
+            page_num = block.page
+            if page_num not in layout_by_page:
+                layout_by_page[page_num] = []
+            
+            # Convert LayoutBlock to dict for storage
+            block_dict = {
+                "type": block.type.value,
+                "text": block.text,
+                "bbox": block.bbox,
+                "reading_order": block.reading_order,
+                "confidence": block.confidence,
+                "metadata": block.metadata
+            }
+            layout_by_page[page_num].append(block_dict)
+            
+            # Also create a flat list with page info
+            flat_blocks.append({
+                **block_dict,
+                "page": block.page
+            })
+        
+        return {
+            'layout_blocks': flat_blocks,
+            'layout_by_page': layout_by_page,
+            'raw_blocks': blocks  # Include the original blocks for any other processing
+        }
     
     def _analyze_rule_based(self, file_path: str) -> List[LayoutBlock]:
         """

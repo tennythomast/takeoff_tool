@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.db.models import Count, Sum
 
 from .models import (
-    KnowledgeBase, Document, Chunk, VectorIndex,
+    KnowledgeBase, Document, DocumentPage, Chunk, VectorIndex,
     RAGQuery, RAGQueryResult
 )
 
@@ -71,6 +71,24 @@ class KnowledgeBaseAdmin(admin.ModelAdmin):
     embedding_model_name.short_description = 'Embedding Model'
 
 
+class DocumentPageInline(admin.TabularInline):
+    model = DocumentPage
+    fields = ('page_number', 'page_text_preview', 'word_count', 'token_count')
+    readonly_fields = ('page_number', 'page_text_preview', 'word_count', 'token_count')
+    extra = 0
+    show_change_link = True
+    max_num = 10
+    
+    def page_text_preview(self, obj):
+        if obj.page_text and len(obj.page_text) > 100:
+            return obj.page_text[:100] + '...'
+        return obj.page_text or ''
+    page_text_preview.short_description = 'Text Preview'
+    
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
 class ChunkInline(admin.TabularInline):
     model = Chunk
     fields = ('chunk_index', 'token_count', 'page_number', 'retrieval_count', 'relevance_score_avg')
@@ -87,11 +105,11 @@ class ChunkInline(admin.TabularInline):
 class DocumentAdmin(admin.ModelAdmin):
     list_display = (
         'title', 'knowledge_base_name', 'document_type', 'storage_approach', 'status',
-        'chunk_count', 'token_count', 'is_active'
+        'page_count', 'chunk_count', 'token_count', 'is_active'
     )
     list_filter = ('is_active', 'status', 'document_type', 'storage_approach')
     search_fields = ('title', 'description', 'knowledge_base__name')
-    readonly_fields = ('chunk_count', 'token_count', 'embedding_cost', 'processed_at', 'last_accessed', 'search_vector_preview')
+    readonly_fields = ('page_count', 'chunk_count', 'token_count', 'embedding_cost', 'processed_at', 'last_accessed', 'search_vector_preview')
     fieldsets = (
         ('Basic Information', {
             'fields': ('title', 'description', 'knowledge_base', 'document_type', 'storage_approach')
@@ -115,18 +133,22 @@ class DocumentAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
         ('Statistics', {
-            'fields': ('chunk_count', 'token_count', 'embedding_cost', 'last_accessed')
+            'fields': ('page_count', 'chunk_count', 'token_count', 'embedding_cost', 'last_accessed')
         }),
         ('Metadata', {
             'fields': ('metadata',),
             'classes': ('collapse',)
         }),
     )
-    inlines = [ChunkInline]
+    inlines = [DocumentPageInline, ChunkInline]
     
     def knowledge_base_name(self, obj):
         return obj.knowledge_base.name
     knowledge_base_name.short_description = 'Knowledge Base'
+    
+    def page_count(self, obj):
+        return obj.pages.count()
+    page_count.short_description = 'Pages'
     
     def search_vector_preview(self, obj):
         """Format the search vector for display in admin"""
@@ -161,6 +183,38 @@ class DocumentAdmin(admin.ModelAdmin):
         html += '</div>'
         return format_html(html)
     search_vector_preview.short_description = 'Search Vector'
+
+
+@admin.register(DocumentPage)
+class DocumentPageAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'document_title', 'page_number', 'word_count',
+        'token_count', 'page_text_preview'
+    )
+    list_filter = ('document__document_type', 'document__status')
+    search_fields = ('page_text', 'document__title')
+    readonly_fields = ('document', 'page_number', 'word_count', 'token_count')
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('document', 'page_number', 'word_count', 'token_count')
+        }),
+        ('Content', {
+            'fields': ('page_text',)
+        }),
+        ('Metadata', {
+            'fields': ('metadata',)
+        }),
+    )
+    
+    def document_title(self, obj):
+        return obj.document.title
+    document_title.short_description = 'Document'
+    
+    def page_text_preview(self, obj):
+        if obj.page_text and len(obj.page_text) > 100:
+            return obj.page_text[:100] + '...'
+        return obj.page_text or ''
+    page_text_preview.short_description = 'Text Preview'
 
 
 @admin.register(Chunk)

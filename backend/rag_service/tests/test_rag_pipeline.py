@@ -55,7 +55,7 @@ class TestRAGPipeline(TestCase):
         # Path to test file
         cls.test_file_path = os.path.join(
             os.path.dirname(__file__), 
-            'test_file1.pdf'
+            'test_file3.pdf'
         )
     
     async def test_document_extraction_and_chunking(self):

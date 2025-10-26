@@ -96,6 +96,7 @@ LOCAL_APPS = [
     'file_storage.apps.FileStorageConfig', # File storage management
     'benchmark.apps.BenchmarkConfig',  # Benchmark app for platform evaluation
     'rag_service.apps.RagServiceConfig',  # RAG service management
+    'takeoff',  # Takeoff app for engineering drawing extraction
 ]
 
 # Combine all apps

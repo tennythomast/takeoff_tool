@@ -397,13 +397,7 @@ class Document(SoftDeletableMixin):
             models.Index(fields=['status', 'created_at']),
             models.Index(fields=['document_type']),
             models.Index(fields=['storage_approach']),
-            # Note: For production, consider adding a GIN index for content
-            # This requires a PostgreSQL extension and migration
-            # models.Index(name='content_gin_idx', fields=['content'], opclasses=['gin_trgm_ops'])
         ]
-    
-    def __str__(self):
-        return f"{self.title} ({self.get_document_type_display()})"
     
     def update_statistics(self):
         """Update document statistics based on storage approach"""
@@ -441,6 +435,88 @@ class Document(SoftDeletableMixin):
         self.save(update_fields=['status', 'processed_at', 'embedding_cost'])
         
         # Update knowledge base statistics
+        
+    def __str__(self):
+        return f"{self.title} ({self.get_document_type_display()})"
+        
+    def update_page_count(self):
+        """Update page count based on related DocumentPage objects"""
+        self.page_count = self.pages.count()
+        self.save(update_fields=['page_count'])
+
+
+class DocumentPage(SoftDeletableMixin):
+    """
+    A page within a document with its own text, tables, and layout information.
+    This allows for more granular access to document content.
+    """
+    # Relationships
+    document = models.ForeignKey(
+        Document,
+        on_delete=models.CASCADE,
+        related_name='pages'
+    )
+    
+    # Page information
+    page_number = models.IntegerField()
+    page_text = models.TextField(blank=True)
+    
+    # Page layout and content
+    layout_blocks = models.JSONField(default=list, blank=True)
+    tables = models.JSONField(default=list, blank=True)
+    images = models.JSONField(default=list, blank=True)
+    
+    # Page metadata
+    width = models.FloatField(null=True, blank=True)
+    height = models.FloatField(null=True, blank=True)
+    rotation = models.IntegerField(default=0)
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    # Statistics
+    token_count = models.IntegerField(default=0)
+    word_count = models.IntegerField(default=0)
+    table_count = models.IntegerField(default=0)
+    image_count = models.IntegerField(default=0)
+    
+    objects = SoftDeletableManager()
+    
+    class Meta:
+        db_table = 'rag_document_page'
+        verbose_name = 'Document Page'
+        verbose_name_plural = 'Document Pages'
+        ordering = ['document', 'page_number']
+        unique_together = ['document', 'page_number']
+        indexes = [
+            models.Index(fields=['document', 'page_number']),
+        ]
+        
+    def __str__(self):
+        return f"{self.document.title} - Page {self.page_number}"
+        
+    def update_statistics(self):
+        """Update page statistics"""
+        # Count tables
+        self.table_count = len(self.tables)
+        
+        # Count images
+        self.image_count = len(self.images)
+        
+        # Count words (rough estimate)
+        if self.page_text:
+            self.word_count = len(self.page_text.split())
+            
+        # Estimate token count (rough estimate: 1.33 tokens per word)
+        self.token_count = int(self.word_count * 1.33)
+        
+        self.save(update_fields=['table_count', 'image_count', 'word_count', 'token_count'])
+        
+    def get_text_with_context(self, context_size=100):
+        """Get text with surrounding context"""
+        return self.page_text
+
+
+    def update_knowledge_base_stats(self):
+        """Update knowledge base statistics"""
         self.knowledge_base.update_statistics()
     
     def mark_processing_failed(self, error_message):

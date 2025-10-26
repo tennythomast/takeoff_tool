@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "extraction_id": "d3e58c3c-604e-4ddd-bf57-425daf3afdc4",
+    "drawing_id": "a80745bb-7ab6-4d5e-bebe-bbecfc77edef",
+    "document_id": "dd3c9b6a-0651-4b60-b7f6-a92c17cc1c2a",
+    "drawing_title": "test_file2.pdf",
+    "drawing_number": "TEST-49ea1c",
+    "page_count": 36,
+    "timestamp": "2025-10-26T05:07:56.514740",
+    "extraction_status": "completed",
+    "processing_time_ms": 16959,
+    "element_count": 2
+  },
+  "elements": [
+    {
+      "element_id": "PF1",
+      "element_type": "IsolatedFooting",
+      "specifications": {
+        "concrete": {
+          "grade": "25",
+          "cover_mm": 50,
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": 600,
+          "width_mm": 1300,
+          "length_mm": 1300,
+          "pedestal_width_mm": null,
+          "pedestal_height_mm": null
+        },
+        "reinforcement": {
+          "top": {
+            "bar_size": "SL102",
+            "quantity": null,
+            "direction": "both_ways",
+            "length_mm": null,
+            "spacing_mm": null
+          },
+          "bottom": {
+            "bar_size": "SL102",
+            "quantity": null,
+            "direction": "both_ways",
+            "length_mm": null,
+            "spacing_mm": null
+          }
+        }
+      },
+      "confidence_score": 0.95
+    },
+    {
+      "element_id": "SF1",
+      "element_type": "StripFooting",
+      "specifications": {
+        "concrete": {
+          "grade": "25",
+          "cover_mm": 50,
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": 500,
+          "width_mm": 600,
+          "length_mm": null
+        },
+        "reinforcement": {
+          "main": {
+            "bar_size": "L11TM",
+            "location": "top_and_bottom",
+            "quantity": 5,
+            "direction": "longitudinal"
+          },
+          "ties": {
+            "bar_size": "R10",
+            "spacing_mm": 900
+          }
+        }
+      },
+      "confidence_score": 0.95
+    }
+  ]
+}

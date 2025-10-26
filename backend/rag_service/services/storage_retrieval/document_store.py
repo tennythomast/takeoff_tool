@@ -9,12 +9,37 @@ This provides a simpler storage model for complete document content.
 
 import json
 import logging
-from typing import Dict, Any, Optional, List
+import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Dict, Any, List, Optional, Tuple
 
-from django.db import transaction
 from asgiref.sync import sync_to_async
+from django.db import transaction
+
+from rag_service.models import Document, DocumentPage
+
+# Import LayoutBlock for serialization
+from rag_service.services.extraction.layout_analyzer import LayoutBlock, BlockType
+
+# Custom JSON encoder to handle UUIDs and custom objects
+class UUIDEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, uuid.UUID):
+            return str(obj)
+        elif isinstance(obj, LayoutBlock):
+            return {
+                'type': obj.type.value if isinstance(obj.type, BlockType) else obj.type,
+                'text': obj.text,
+                'bbox': obj.bbox,
+                'page': obj.page,
+                'reading_order': obj.reading_order,
+                'confidence': obj.confidence,
+                'metadata': obj.metadata
+            }
+        elif isinstance(obj, BlockType):
+            return obj.value
+        return super().default(obj)
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +65,8 @@ class DocumentStore:
         self,
         document_id: str,
         extraction_response: Dict[str, Any],
-        file_metadata: Dict[str, Any]
+        file_metadata: Dict[str, Any],
+        knowledge_base_id: Optional[str] = None
     ) -> bool:
         """
         Store the complete extraction response.
@@ -70,6 +96,10 @@ class DocumentStore:
         from rag_service.models import Document
         
         try:
+            # Ensure extraction_response and file_metadata have no UUID serialization issues
+            extraction_response = json.loads(json.dumps(extraction_response, cls=UUIDEncoder))
+            file_metadata = json.loads(json.dumps(file_metadata, cls=UUIDEncoder))
+            
             # Prepare extraction metadata
             extraction_metadata = {
                 'text': extraction_response.get('text', ''),
@@ -84,6 +114,9 @@ class DocumentStore:
                 'error': extraction_response.get('error'),
             }
             
+            # Convert to JSON string and back to ensure UUID serialization
+            extraction_metadata = json.loads(json.dumps(extraction_metadata, cls=UUIDEncoder))
+            
             # Prepare document metadata
             document_metadata = {
                 **file_metadata,
@@ -94,12 +127,32 @@ class DocumentStore:
                 'processing_time_ms': extraction_response.get('processing_time_ms', 0),
             }
             
+            # Convert to JSON string and back to ensure UUID serialization
+            document_metadata = json.loads(json.dumps(document_metadata, cls=UUIDEncoder))
+            
             # Update or create document record
             @sync_to_async
             def update_document():
+                # Get knowledge base ID from metadata or parameter
+                kb_id = document_metadata.get('knowledge_base_id') or knowledge_base_id
+                if not kb_id:
+                    raise ValueError("knowledge_base_id is required")
+                    
+                # Get knowledge base
+                from rag_service.models import KnowledgeBase
+                try:
+                    knowledge_base = KnowledgeBase.objects.get(id=kb_id)
+                except KnowledgeBase.DoesNotExist:
+                    raise ValueError(f"Knowledge base with ID {kb_id} does not exist")
+                
+                # Get title from metadata or use filename as fallback
+                title = document_metadata.get('title') or document_metadata.get('file_name', 'Untitled Document')
+                
                 document, created = Document.objects.update_or_create(
                     id=document_id,
                     defaults={
+                        'knowledge_base': knowledge_base,
+                        'title': title,  # Set the title field
                         'extraction_metadata': extraction_metadata,
                         'metadata': document_metadata,
                         'extraction_method': extraction_response.get('extraction_method', 'unified'),
@@ -107,13 +160,55 @@ class DocumentStore:
                         'extraction_quality_score': self._calculate_quality_score(extraction_response),
                         'content': extraction_response.get('text', ''),
                         'status': 'completed' if extraction_response.get('success', True) else 'failed',
-                        'processing_error': extraction_response.get('error', ''),
+                        'processing_error': extraction_response.get('error') or '',  # Ensure never null
                         'processed_at': datetime.utcnow()
                     }
                 )
                 return document, created
             
             document, created = await update_document()
+            
+            # Store document pages if available
+            pages = extraction_response.get('pages', [])
+            logger.info(f"Found {len(pages)} pages in extraction response for document {document_id}")
+            if pages:
+                @sync_to_async
+                def store_pages():
+                    # Delete existing pages first
+                    DocumentPage.objects.filter(document_id=document_id).delete()
+                    
+                    # Create new pages
+                    page_objects = []
+                    for i, page_data in enumerate(pages):
+                        logger.info(f"Processing page {i+1} with keys: {page_data.keys()}")
+                        if not isinstance(page_data, dict):
+                            logger.warning(f"Page data is not a dictionary: {type(page_data)}")
+                            continue
+                        page_objects.append(DocumentPage(
+                            document_id=document_id,
+                            page_number=i + 1,  # 1-indexed
+                            page_text=page_data.get('text', ''),  # Store text in page_text field
+                            metadata={
+                                'width': page_data.get('width'),
+                                'height': page_data.get('height'),
+                                'rotation': page_data.get('rotation', 0),
+                                'has_text': bool(page_data.get('text')),
+                                'text_density': page_data.get('text_density', 0)
+                            }
+                        ))
+                    
+                    # Bulk create pages
+                    if page_objects:
+                        DocumentPage.objects.bulk_create(page_objects)
+                        return len(page_objects)
+                    return 0
+                
+                # Store pages
+                try:
+                    page_count = await store_pages()
+                    logger.info(f"Stored {page_count} pages for document {document_id}")
+                except Exception as e:
+                    logger.error(f"Failed to store pages for document {document_id}: {e}", exc_info=True)
             
             logger.info(
                 f"{'Created' if created else 'Updated'} document: {document_id} "
@@ -172,6 +267,11 @@ class DocumentStore:
                 with transaction.atomic():
                     # Update document content
                     document.content = extraction_response.get('text', '')
+                    
+                    # Set title if not already set
+                    if not document.title:
+                        metadata = document.metadata or {}
+                        document.title = metadata.get('title') or metadata.get('file_name', 'Untitled Document')
                     
                     # Store complete extraction response in metadata
                     document.extraction_metadata = {

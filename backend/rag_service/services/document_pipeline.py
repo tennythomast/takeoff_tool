@@ -121,10 +121,7 @@ class DocumentPipeline:
             # 4. Prepare extraction response
             extraction_response = {
                 'text': extraction_result.get('text', ''),
-                'layout_blocks': layout_blocks,
-                'tables': tables,
-                'entities': [],  # No entity extraction in rule-based approach
-                'summary': '',   # No summary in rule-based approach
+                'pages': extraction_result.get('pages', []),  # Include page-by-page text
                 'extraction_method': 'rule_based',
                 'model_used': 'rule_based',
                 'provider_used': 'local',
@@ -137,15 +134,25 @@ class DocumentPipeline:
             
             # 5. Store in PostgreSQL
             logger.info(f"Storing document {document_id} in database")
-            await self._store_document(
-                document_id=document_id,
-                knowledge_base_id=knowledge_base_id,
-                title=title,
-                description=description,
-                created_by_id=created_by_id,
-                extraction_response=extraction_response,
-                file_metadata=file_metadata
-            )
+            try:
+                # Enhance file metadata with document information
+                enhanced_metadata = {
+                    **file_metadata,
+                    'title': title,
+                    'description': description or '',
+                    'knowledge_base_id': knowledge_base_id,
+                    'created_by_id': created_by_id
+                }
+                
+                # Store directly using document_store for error cases
+                await self.document_store.store_extraction(
+                    document_id=document_id,
+                    extraction_response=extraction_response,
+                    file_metadata=enhanced_metadata,
+                    knowledge_base_id=knowledge_base_id
+                )
+            except Exception as store_error:
+                logger.error(f"Failed to store error information: {store_error}", exc_info=True)
             
             logger.info(f"Document processing completed for {file_path}")
             return {
@@ -165,10 +172,7 @@ class DocumentPipeline:
             # Store error information
             error_response = {
                 'text': '',
-                'layout_blocks': [],
-                'tables': [],
-                'entities': [],
-                'summary': '',
+                'pages': [],  # Empty pages list
                 'extraction_method': 'rule_based',
                 'model_used': 'rule_based',
                 'provider_used': 'local',
@@ -180,14 +184,21 @@ class DocumentPipeline:
             }
             
             try:
-                await self._store_document(
+                # Enhance file metadata with document information
+                enhanced_metadata = {
+                    **file_metadata,
+                    'title': title,
+                    'description': description or '',
+                    'knowledge_base_id': knowledge_base_id,
+                    'created_by_id': created_by_id
+                }
+                
+                # Store directly using document_store for error cases
+                await self.document_store.store_extraction(
                     document_id=document_id,
-                    knowledge_base_id=knowledge_base_id,
-                    title=title,
-                    description=description,
-                    created_by_id=created_by_id,
                     extraction_response=error_response,
-                    file_metadata=file_metadata
+                    file_metadata=enhanced_metadata,
+                    knowledge_base_id=knowledge_base_id
                 )
             except Exception as store_error:
                 logger.error(f"Failed to store error information: {store_error}", exc_info=True)
@@ -202,207 +213,160 @@ class DocumentPipeline:
             }
     
     async def _extract_text(self, file_path: str) -> Dict[str, Any]:
-        """Extract text using rule-based extraction"""
+        """Extract text using the TextExtractor service"""
         try:
-            # Use PyMuPDF directly for rule-based extraction
-            import fitz  # PyMuPDF
-            text = ""
-            metadata = {}
+            # Use the existing TextExtractor service
+            extraction_result = self.text_extractor.extract(file_path)
             
-            try:
-                doc = fitz.open(file_path)
-                for page_num, page in enumerate(doc):
-                    page_text = page.get_text()
-                    text += page_text + "\n\n"
-                
-                metadata = {
-                    "page_count": len(doc),
-                    "file_info": doc.metadata,
-                    "extraction_method": "rule_based_pymupdf"
-                }
-                doc.close()
-            except Exception as inner_e:
-                logger.warning(f"PyMuPDF extraction failed: {inner_e}, trying fallback methods")
-                # Try to use other libraries as fallback
-                if file_path.lower().endswith('.pdf'):
-                    try:
-                        from pypdf import PdfReader
-                        reader = PdfReader(file_path)
-                        text = ""
-                        for page in reader.pages:
-                            text += page.extract_text() + "\n\n"
-                        metadata = {
-                            "page_count": len(reader.pages),
-                            "extraction_method": "rule_based_pypdf"
-                        }
-                    except Exception as pdf_e:
-                        logger.warning(f"PyPDF extraction failed: {pdf_e}")
-                        raise
+            # Log the extraction result
+            logger.info(f"Text extraction result keys: {extraction_result.keys()}")
+            logger.info(f"Pages in extraction result: {len(extraction_result.get('pages', []))}")
+            if 'pages' in extraction_result:
+                logger.info(f"First page keys: {extraction_result['pages'][0].keys() if extraction_result['pages'] else 'No pages'}")
             
+            # Return the extraction result with a consistent structure
             return {
-                'text': text,
-                'metadata': metadata,
-                'warnings': []
+                'text': extraction_result.get('text', ''),
+                'metadata': extraction_result.get('metadata', {}),
+                'pages': extraction_result.get('pages', []),  # This contains per-page data
+                'warnings': extraction_result.get('problematic_pages', [])
             }
         except Exception as e:
             logger.error(f"Text extraction failed: {e}", exc_info=True)
             return {
                 'text': '',
                 'metadata': {},
+                'pages': [],
                 'warnings': [f"Text extraction failed: {str(e)}"]
             }
     
-    async def _analyze_layout(self, file_path: str) -> List[Dict[str, Any]]:
-        """Analyze document layout"""
+    async def _analyze_layout(self, file_path: str) -> Dict[str, Any]:
+        """Analyze document layout using the LayoutAnalyzer service"""
         try:
-            # Use layout analyzer with non-LLM approach
-            # This is a simplified version that doesn't use LLM
-            layout_blocks = []
+            # Use the existing LayoutAnalyzer service which now returns organized data
+            layout_result = await self.layout_analyzer.analyze_layout(
+                file_path=file_path,
+                method='rule_based'
+            )
             
-            # For PDF files, use PyMuPDF to analyze layout
-            if file_path.lower().endswith('.pdf'):
-                import fitz  # PyMuPDF
-                doc = fitz.open(file_path)
-                
-                for page_num, page in enumerate(doc):
-                    # Extract blocks using PyMuPDF's built-in layout analysis
-                    blocks = page.get_text("dict")["blocks"]
-                    
-                    for i, block in enumerate(blocks):
-                        if "lines" in block:  # Text block
-                            text = ""
-                            for line in block["lines"]:
-                                for span in line["spans"]:
-                                    text += span["text"] + " "
-                            
-                            # Create a layout block
-                            layout_blocks.append({
-                                "type": "paragraph",  # Simple classification
-                                "text": text.strip(),
-                                "bbox": block["bbox"],
-                                "page": page_num,
-                                "reading_order": i,
-                                "confidence": 1.0,  # High confidence for rule-based
-                                "metadata": {}
-                            })
-            
-            return layout_blocks
+            # Return the result directly since it's already organized
+            return layout_result
         except Exception as e:
             logger.error(f"Layout analysis failed: {e}", exc_info=True)
-            return []
+            return {
+                'layout_blocks': [],
+                'layout_by_page': {}
+            }
     
-    async def _extract_tables(self, file_path: str) -> List[Dict[str, Any]]:
-        """Extract tables using rule-based methods"""
+    async def _extract_tables(self, file_path: str) -> Dict[str, Any]:
+        """Extract tables using the TableExtractor service"""
         try:
-            # Use TableExtractor with non-LLM methods
-            # Only use CAMELOT and PDFPLUMBER methods
-            tables = []
+            # Use the existing TableExtractor service which now returns organized data
+            tables_result = await self.table_extractor.extract_tables(
+                file_path=file_path
+            )
             
-            if file_path.lower().endswith('.pdf'):
-                # Extract tables using camelot (rule-based)
-                try:
-                    import camelot
-                    table_list = camelot.read_pdf(file_path, pages='all', flavor='lattice')
-                    
-                    for i, table in enumerate(table_list):
-                        df = table.df
-                        tables.append({
-                            "page": table.page,
-                            "table_number": i + 1,
-                            "bbox": table._bbox,
-                            "data": df.to_dict('records'),
-                            "headers": df.columns.tolist() if not df.empty else [],
-                            "extraction_method": "camelot"
-                        })
-                except Exception as camelot_error:
-                    logger.warning(f"Camelot table extraction failed: {camelot_error}")
-                    
-                    # Fallback to pdfplumber
-                    try:
-                        import pdfplumber
-                        with pdfplumber.open(file_path) as pdf:
-                            for page_num, page in enumerate(pdf.pages):
-                                for i, table in enumerate(page.extract_tables()):
-                                    if table:
-                                        # Convert to pandas DataFrame
-                                        import pandas as pd
-                                        df = pd.DataFrame(table[1:], columns=table[0] if table else [])
-                                        
-                                        tables.append({
-                                            "page": page_num + 1,
-                                            "table_number": i + 1,
-                                            "bbox": page.bbox,
-                                            "data": df.to_dict('records'),
-                                            "headers": df.columns.tolist() if not df.empty else [],
-                                            "extraction_method": "pdfplumber"
-                                        })
-                    except Exception as plumber_error:
-                        logger.warning(f"PDFPlumber table extraction failed: {plumber_error}")
-            
-            return tables
+            # Return the result directly since it's already organized
+            return tables_result
         except Exception as e:
             logger.error(f"Table extraction failed: {e}", exc_info=True)
-            return []
+            return {
+                'tables': [],
+                'tables_by_page': {}
+            }
     
-    async def _store_document(
+    async def process_document_with_pages(
         self,
-        document_id: str,
+        file_path: str,
         knowledge_base_id: str,
-        title: str,
-        description: str,
-        created_by_id: Optional[str],
-        extraction_response: Dict[str, Any],
-        file_metadata: Dict[str, Any]
-    ) -> bool:
-        """Store document in PostgreSQL"""
-        from rag_service.models import Document, KnowledgeBase
-        
-        @sync_to_async
-        def create_document():
-            with transaction.atomic():
-                # Get knowledge base
-                try:
-                    knowledge_base = KnowledgeBase.objects.get(id=knowledge_base_id)
-                except KnowledgeBase.DoesNotExist:
-                    raise ValueError(f"Knowledge base {knowledge_base_id} does not exist")
-                
-                # Create document
-                document, created = Document.objects.update_or_create(
-                    id=document_id,
-                    defaults={
-                        'knowledge_base': knowledge_base,
-                        'title': title,
-                        'description': description or '',  # Use empty string if description is None
-                        'created_by_id': created_by_id,
-                        'document_type': file_metadata.get('file_type', 'pdf'),
-                        'content': extraction_response.get('text', ''),
-                        'metadata': file_metadata,
-                        'extraction_metadata': {
-                            'layout_blocks': extraction_response.get('layout_blocks', []),
-                            'tables': extraction_response.get('tables', []),
-                            'warnings': extraction_response.get('warnings', [])
-                        },
-                        'extraction_method': 'rule_based',
-                        'status': 'completed' if extraction_response.get('success', True) else 'failed',
-                        'processing_error': extraction_response.get('error', '') or '',  # Use empty string if None
-                        'processed_at': timezone.now(),
-                        'storage_approach': 'complete'  # Direct storage without chunking
-                    }
-                )
-                
-                # Update knowledge base statistics
-                knowledge_base.update_statistics()
-                
-                return document, created
+        title: str = None,
+        description: str = None,
+        created_by_id: str = None,
+        use_rule_based: bool = False
+    ) -> Dict[str, Any]:
+        """Process a document using existing extraction services with page-level data"""
+        start_time = time.time()
+        document_id = str(uuid.uuid4())
         
         try:
-            document, created = await create_document()
-            action = "Created" if created else "Updated"
-            logger.info(f"{action} document {document_id} in knowledge base {knowledge_base_id}")
-            return True
+            # Extract file metadata
+            file_info = Path(file_path)
+            file_metadata = {
+                'file_name': file_info.name,
+                'file_size': file_info.stat().st_size if file_info.exists() else 0,
+                'file_type': file_info.suffix.lower().lstrip('.'),
+                'original_path': str(file_path)
+            }
+            
+            # Set default title if not provided
+            if not title:
+                title = os.path.basename(file_path)
+                
+            # Extract text using TextExtractor
+            text_response = await self._extract_text(file_path)
+            
+            # Analyze layout using LayoutAnalyzer
+            layout_blocks = await self._analyze_layout(file_path)
+            
+            # Extract tables using TableExtractor
+            tables = await self._extract_tables(file_path)
+            
+            # Store document directly using document_store
+            # Enhance file metadata with document information
+            enhanced_metadata = {
+                **file_metadata,
+                'title': title,
+                'description': description or '',
+                'knowledge_base_id': knowledge_base_id,
+                'created_by_id': created_by_id
+            }
+            
+            # Prepare the extraction response
+            complete_extraction = {
+                'text': text_response.get('text', ''),
+                'pages': text_response.get('pages', []),
+                'layout_blocks': layout_blocks,
+                'tables': tables,
+                'warnings': text_response.get('warnings', []),
+                'success': True,
+                'extraction_method': 'rule_based',
+                'model_used': 'rule_based',
+                'provider_used': 'local',
+                'cost_usd': 0.0,  # No cost for rule-based extraction
+                'processing_time_ms': (time.time() - start_time) * 1000
+            }
+            
+            # Store using document_store
+            await self.document_store.store_extraction(
+                document_id=document_id,
+                extraction_response=complete_extraction,
+                file_metadata=enhanced_metadata,
+                knowledge_base_id=knowledge_base_id
+            )
+            
+            # Calculate processing time
+            processing_time_ms = (time.time() - start_time) * 1000
+            
+            # Return success response
+            return {
+                'status': 'success',
+                'document_id': document_id,
+                'text': text_response.get('text', ''),
+                'pages': text_response.get('pages', []),
+                'layout_blocks': layout_blocks,
+                'tables': tables,
+                'processing_time_ms': processing_time_ms
+            }
         except Exception as e:
-            logger.error(f"Failed to store document: {e}", exc_info=True)
-            return False
+            logger.error(f"Error processing document {file_path}: {e}", exc_info=True)
+            return {
+                'status': 'failed',
+                'document_id': document_id,
+                'error': str(e),
+                'processing_time_ms': (time.time() - start_time) * 1000
+            }
+
+    # Storage is now handled directly by calling document_store.store_extraction
 
 
 # Command-line interface for testing

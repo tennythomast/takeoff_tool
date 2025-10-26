@@ -5,7 +5,7 @@ This module now uses the UnifiedExtractor for vision-based table extraction to a
 """
 
 import logging
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from enum import Enum
 import pandas as pd
 
@@ -43,7 +43,7 @@ class TableExtractor:
         file_path: str,
         organization=None,
         pages: Optional[List[int]] = None
-    ) -> List[Dict]:
+    ) -> Dict[str, Any]:
         """
         Extract all tables from document with fallback strategy.
         
@@ -53,7 +53,10 @@ class TableExtractor:
             pages: Specific pages to process (None = all pages)
         
         Returns:
-            List of table dictionaries with:
+            Dictionary containing:
+            - tables: List of table dictionaries with page info
+            - tables_by_page: Dict organizing tables by page number
+            Each table dictionary contains:
             - data: DataFrame
             - page: Page number
             - bbox: Bounding box [x1, y1, x2, y2]
@@ -69,7 +72,7 @@ class TableExtractor:
             camelot_tables = self._extract_with_camelot(file_path, pages)
             if camelot_tables and self._assess_quality(camelot_tables) > 0.7:
                 logger.info(f"Camelot extracted {len(camelot_tables)} high-quality tables")
-                return camelot_tables
+                return self._organize_tables_by_page(camelot_tables)
         except Exception as e:
             logger.warning(f"Camelot extraction failed: {e}")
         
@@ -78,11 +81,40 @@ class TableExtractor:
             plumber_tables = self._extract_with_pdfplumber(file_path, pages)
             if plumber_tables and self._assess_quality(plumber_tables) > 0.6:
                 logger.info(f"pdfplumber extracted {len(plumber_tables)} tables")
-                return plumber_tables
+                return self._organize_tables_by_page(plumber_tables)
         except Exception as e:
             logger.warning(f"pdfplumber extraction failed: {e}")
         
-        return tables
+        return self._organize_tables_by_page(tables)
+    
+    def _organize_tables_by_page(self, tables: List[Dict]) -> Dict[str, Any]:
+        """
+        Organize tables by page number for easier access.
+        
+        Args:
+            tables: List of table dictionaries with page info
+            
+        Returns:
+            Dictionary with tables and tables_by_page
+        """
+        tables_by_page = {}
+        
+        for table in tables:
+            page_num = table.get('page', 1)
+            if page_num not in tables_by_page:
+                tables_by_page[page_num] = []
+            
+            # Create a copy of the table without the page number for page-specific collection
+            table_data = table.copy()
+            if 'page' in table_data:
+                del table_data['page']
+                
+            tables_by_page[page_num].append(table_data)
+        
+        return {
+            'tables': tables,  # All tables with page info
+            'tables_by_page': tables_by_page  # Organized by page
+        }
     
     def _extract_with_camelot(
         self, 

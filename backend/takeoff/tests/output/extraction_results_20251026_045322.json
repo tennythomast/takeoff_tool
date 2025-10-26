@@ -1,0 +1,64 @@
+{
+  "extraction_id": "4bae0ec5-30fc-41d0-8524-9b4b46293367",
+  "drawing_id": "fab5a02c-88ab-48f5-b39f-7dc47c707c1e",
+  "document_id": "54f27026-7011-4c25-ab6b-b1e751cf5f1f",
+  "timestamp": "2025-10-26T04:53:22.341469",
+  "elements": [
+    {
+      "element_id": "DP1",
+      "element_type": "CircularColumn",
+      "specifications": {
+        "concrete": {
+          "grade": "N25",
+          "cover_mm": {
+            "sides": 50
+          },
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": 1200,
+          "width_mm": null,
+          "length_mm": null,
+          "diameter_mm": 600
+        },
+        "reinforcement": {
+          "vertical": {
+            "bar_size": "N12",
+            "location": "central",
+            "quantity": 1,
+            "spacing_mm": null
+          }
+        }
+      },
+      "confidence_score": 0.95
+    },
+    {
+      "element_id": "DP2",
+      "element_type": "CircularColumn",
+      "specifications": {
+        "concrete": {
+          "grade": "N25",
+          "cover_mm": {
+            "sides": 50
+          },
+          "volume_m3": null
+        },
+        "dimensions": {
+          "depth_mm": 600,
+          "width_mm": null,
+          "length_mm": null,
+          "diameter_mm": 450
+        },
+        "reinforcement": {
+          "vertical": {
+            "bar_size": "N12",
+            "location": "central",
+            "quantity": 1,
+            "spacing_mm": null
+          }
+        }
+      },
+      "confidence_score": 0.95
+    }
+  ]
+}

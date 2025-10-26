@@ -51,3 +51,20 @@ chardet>=4.0.0               # Encoding detection
 markdown>=3.3.7              # Markdown parsing
 cohere==4.37                 # Text generation
 beautifulsoup4==4.12.2       # HTML processing
+
+# Text extraction dependencies
+PyMuPDF>=1.20.0  # For PDF extraction
+python-docx>=0.8.11  # For DOCX extraction
+chardet>=4.0.0  # For encoding detection
+markdown>=3.3.7  # For Markdown parsing
+
+# Table extraction dependencies
+pandas>=2.0.0  # For DataFrame handling
+camelot-py[base]>=0.11.0  # For table extraction from PDFs
+pdfplumber>=0.10.0  # Alternative table extraction
+tabulate>=0.9.0  # For markdown table formatting
+ghost-script>=0.2.0  # For Camelot (optional)
+
+# Image processing dependencies
+Pillow>=10.0.0  # For image processing
+pdf2image>=1.16.0  # For PDF to image conversion
