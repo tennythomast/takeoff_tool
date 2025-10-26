@@ -27,7 +27,6 @@ from modelhub.services.routing.types import RequestContext, EntityType, Optimiza
 from takeoff.models import Drawing, TakeoffExtraction, TakeoffElement
 from takeoff.prompts.trades.concrete import ConcreteExtractionPrompt
 from takeoff.prompts.components.rules import get_combined_rules
-from takeoff.prompts.components.output_format import get_output_format
 
 logger = logging.getLogger(__name__)
 
