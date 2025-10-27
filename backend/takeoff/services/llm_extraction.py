@@ -216,7 +216,7 @@ class LLMExtractionService:
             user_id="system",  # System-initiated extraction
             # Note: quality_critical=True is used instead of optimization_strategy
             quality_critical=True,  # Use high-quality models for extraction
-            max_tokens=30000  # Balanced limit to ensure all elements can be extracted
+            max_tokens=100000  # Increased limit to handle larger documents with many elements
         )
         
         # Add metadata for additional context
@@ -758,11 +758,12 @@ class LLMExtractionService:
             
             # Create new elements
             for result in results:
-                element_id = result.get('element_id', '')
-                element_type = result.get('element_type', '')
+                element_id = result.get('element_id', '').strip()
+                element_type = result.get('element_type', '').strip()
                 
-                if not element_id or not element_type:
-                    logger.warning(f"Skipping element without ID or type: {result}")
+                # Skip elements with invalid IDs (empty, dash, or whitespace)
+                if not element_id or element_id == '-' or not element_type:
+                    logger.warning(f"Skipping element with invalid ID or type: ID='{element_id}', Type='{element_type}'")
                     continue
                 
                 # Create element object

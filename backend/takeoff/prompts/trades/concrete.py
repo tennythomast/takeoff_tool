@@ -43,23 +43,40 @@ INPUT DATA:
 {{ input_data }}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-CONCRETE ELEMENT CATEGORIES:
+🎯 CRITICAL: EXTRACT ONLY FROM SCHEDULES/TABLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Identify and extract ANY concrete element in these categories:
+⚠️ MANDATORY EXTRACTION RULES:
 
-1. FOUNDATIONS: Footings (isolated/pad, strip/continuous, combined, pile caps, rafts)
-2. VERTICAL: Columns (rectangular, circular), Walls (structural, shear, retaining)
-3. HORIZONTAL: Beams (rectangular, L-shaped, T-shaped), Slabs (flat, ribbed, waffle)
-4. SPECIAL: Staircases, Ramps, Water tanks, Pits/chambers, Precast elements
-5. MISCELLANEOUS: Curbs, Gutters, Pavements, any other concrete work
+1. **ONLY extract elements from SCHEDULES or TABLES**
+   - Look for organized tabular data (rows and columns)
+   - Common schedule names: "FOOTING SCHEDULE", "COLUMN SCHEDULE", "BEAM SCHEDULE", "SLAB SCHEDULE"
+   - Tables typically have headers like: Mark, Size, Reinforcement, Concrete Grade, etc.
 
-REASONING APPROACH:
-- Read schedules/tables for organized data
-- Scan details/sections for specific elements
-- Check notes for special conditions
-- Look for element marks (F-01, C-12, BM-23, etc.)
-- Identify element type from context (footing, column, beam, slab, etc.)
+2. **REQUIRED: Element MUST have dimensions**
+   - MUST have at least ONE of: Width, Length, Depth, or Diameter
+   - If no dimensions are present, DO NOT extract the element
+   - Dimensions must be actual numbers (not "varies", "TBD", "see detail")
+
+3. **IGNORE the following:**
+   ❌ General notes or text descriptions
+   ❌ Detail callouts ("see detail", "refer to", "typical")
+   ❌ Title blocks, legends, or keys
+   ❌ Elements without proper dimensions
+   ❌ References to other drawings
+   ❌ Construction notes or specifications
+
+4. **CONCRETE ELEMENT CATEGORIES** (only from schedules/tables):
+   - FOUNDATIONS: Footings, Pile caps, Rafts
+   - VERTICAL: Columns, Walls
+   - HORIZONTAL: Beams, Slabs
+   - SPECIAL: Stairs, Ramps, Tanks
+
+EXTRACTION APPROACH:
+1. Find schedules/tables in the drawing
+2. For each row in the schedule, check if it has dimensions
+3. If dimensions exist, extract the complete element data
+4. If no dimensions, skip that element entirely
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXTRACTION REQUIREMENTS:
@@ -67,34 +84,44 @@ EXTRACTION REQUIREMENTS:
 
 For EACH concrete element found, extract:
 
-A. IDENTIFICATION:
-   - element_id: Mark/designation (e.g., "F-01", "COL-C12", "BM-A-23")
-   - element_type: Specific type based on characteristics (see Element Types below)
-
-B. DIMENSIONS (all in mm unless specified):
-   - Width, length/height, depth/thickness (as applicable)
-   - Quantity if multiple identical elements
-   - Shape details if non-standard
-
-C. REINFORCEMENT DETAILS:
-   For each layer/direction:
-   - bar_size: Size designation (N12, N16, N20, N24, N28, N32, N36, N40)
-   - spacing_mm: Center-to-center spacing (typical: 100-300mm)
-   - quantity: Number of bars (if specified)
-   - direction: longitudinal, transverse, both_ways, etc.
-   - location: bottom, top, vertical, horizontal, etc.
+A. IDENTIFICATION (from schedule/table row):
+   ⚠️ CRITICAL: Element MUST have a valid ID
+   - element_id: Mark/designation from the schedule (e.g., "F-01", "COL-C12", "BM-A-23")
+   - element_type: Specific type (IsolatedFooting, RectangularColumn, RectangularBeam, etc.)
    
-   Include ALL reinforcement layers mentioned (bottom, top, vertical, ties, stirrups, etc.)
+   ❌ SKIP elements without a proper ID:
+   - If ID column is empty, blank, or contains "-", skip this row
+   - If ID is just a number without context (e.g., "1", "2", "3"), skip it
+   - If ID is descriptive text (e.g., "see detail", "typical", "notes"), skip it
+   - ONLY extract rows with actual element marks/designations
 
-D. CONCRETE PROPERTIES:
-   - grade: Strength grade (N20, N25, N32, N40, N50, N65)
-   - cover_mm: Concrete cover (typical: 20-100mm)
-   - volume_m3: ONLY if explicitly stated (usually leave as null)
+B. DIMENSIONS (MANDATORY - all in mm):
+   ⚠️ CRITICAL: Element MUST have at least ONE dimension
+   - Width (mm) - required for most elements
+   - Length/Height (mm) - required for most elements
+   - Depth/Thickness (mm) - required for slabs, footings
+   - Diameter (mm) - for circular columns/piles
+   
+   If NONE of these dimensions are present, DO NOT extract this element
 
-E. ADDITIONAL DETAILS (if present):
-   - Pedestals, drop panels, openings, connections
-   - Special finishes or waterproofing
-   - Excavation depth (for foundations)
+C. REINFORCEMENT DETAILS (only if present in schedule):
+   - TOP_REINF: Top/main reinforcement as shown
+   - BOT_REINF: Bottom/secondary reinforcement as shown
+   - SIDE_REINF: Side/transverse reinforcement (ties, stirrups, links) as shown
+   
+   Extract EXACTLY as written in the schedule - do not interpret or convert
+
+D. CONCRETE PROPERTIES (only if present in schedule):
+   - GRADE: Strength grade as shown (e.g., N20, N25, N32, N40, N50, N65)
+   - COVER: Concrete cover in mm as shown
+   
+   Extract EXACTLY as written - do not assume or calculate
+
+E. ADDITIONAL DETAILS (only if explicitly shown in schedule):
+   - LOCATION: Physical location from schedule
+   - ZONE: Building zone if specified
+   - LEVEL: Floor/level if specified
+   - NOTES: Brief notes from schedule only
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ELEMENT TYPES (auto-detect based on characteristics):
@@ -140,22 +167,15 @@ Miscellaneous:
 Use the most specific type that matches the element characteristics.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-NOTATION GUIDE (Common Patterns):
+DIMENSION PARSING (if in format like "1200x1500x600"):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-DIMENSIONS:
-1200x1500x600 → width: 1200mm, length: 1500mm, depth: 600mm
-300x400 → width: 300mm, depth: 400mm
-Ø600 or D600 → diameter: 600mm
+If dimensions are in combined format, split them:
+- 1200x1500x600 → WIDTH: 1200, LENGTH: 1500, DEPTH: 600
+- 300x400 → WIDTH: 300, DEPTH: 400
+- Ø600 or D600 → Use as diameter in WIDTH field
 
-REINFORCEMENT:
-N16@200 B.W → bar_size: "N16", spacing_mm: 200, direction: "both_ways"
-N20@150 E.W → bar_size: "N20", spacing_mm: 150, direction: "each_way"
-8N24 → quantity: 8, bar_size: "N24"
-N16-200 → bar_size: "N16", spacing_mm: 200 (dash notation)
-16Ø@200 → bar_size: "N16", spacing_mm: 200 (diameter notation)
-T&B → "top_and_bottom"
-L & T → "longitudinal_and_transverse"
+Otherwise, extract dimensions from their respective columns in the schedule
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -165,20 +185,12 @@ CRITICAL EXTRACTION RULES:
 {{ universal_rules }}
 
 CONCRETE-SPECIFIC RULES:
-1. ALWAYS preserve units (25mm not 25, N32 not 32)
-2. Extract ALL reinforcement layers (don't miss top bars, ties, stirrups)
-3. For multi-layer reinforcement, create separate entries for each layer
-4. Typical reinforcement ranges: spacing 100-300mm, bars N12-N40
-5. Typical concrete grades: N25, N32, N40 (most common)
-6. Set calculated fields (volume_m3) to null unless explicitly given
-7. Note if element is marked as "typical" or "similar"
-
-QUALITY CHECKS:
-✓ Does element_type match the actual structural element?
-✓ Are dimensions in millimeters (not meters or mixed)?
-✓ Is reinforcement notation correctly parsed (bar size + spacing)?
-✓ Is concrete grade valid (N20/N25/N32/N40/N50/N65)?
-✓ Are all visible reinforcement layers captured?
+1. Extract ONLY what is explicitly shown in the schedule/table
+2. DO NOT interpret, calculate, or assume any values
+3. DO NOT convert units - extract exactly as written
+4. If a field is empty or missing in the schedule, use dash (-)
+5. DO NOT add typical values or make educated guesses
+6. Copy values exactly as they appear in the schedule
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT (TABLE - ULTRA COMPACT):
@@ -187,7 +199,7 @@ OUTPUT FORMAT (TABLE - ULTRA COMPACT):
 Return a CSV-style table with pipe delimiters. One row per element.
 
 HEADER ROW (always include):
-ID|TYPE|PAGE|QTY|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
+ID|TYPE|PAGE|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
 
 DATA ROWS:
 - Use pipe | as delimiter
@@ -199,19 +211,18 @@ DATA ROWS:
 
 EXAMPLE:
 ```
-ID|TYPE|PAGE|QTY|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
-PF.1|IsolatedFooting|1|1|900|900|600|SL92|-|-|N32|40|-|Grid A1|Zone A|Ground|-|Standard pad
-PF.2|IsolatedFooting|1|3|1200|1200|600|SL102|-|-|N32|40|-|Grid B2-B4|Zone A|Ground|TYP|Typical pad
-C1|RectangularColumn|2|8|400|400|3000|8N20|-|N12@150|N32|50|F2|Grid lines|Zone B|L1-L3|TYP|Typical column
-BM1|RectangularBeam|2|1|300|600|-|2N16|3N20|-|N32|40|-|Grid A-B|Zone A|Level 1|-|Main beam
-SF1|StripFooting|1|15m|1000|-|650|N16@200|N16@200|-|N32|75|-|Perimeter|All|Ground|-|Continuous footing
+ID|TYPE|PAGE|WIDTH|LENGTH|DEPTH|TOP_REINF|BOT_REINF|SIDE_REINF|GRADE|COVER|FINISH|LOCATION|ZONE|LEVEL|TYPICAL|NOTES
+PF.1|IsolatedFooting|1|900|900|600|SL92|-|-|N32|40|-|Grid A1|Zone A|Ground|-|Standard pad
+PF.2|IsolatedFooting|1|1200|1200|600|SL102|-|-|N32|40|-|Grid B2-B4|Zone A|Ground|TYP|Typical pad
+C1|RectangularColumn|2|400|400|3000|8N20|-|N12@150|N32|50|F2|Grid lines|Zone B|L1-L3|TYP|Typical column
+BM1|RectangularBeam|2|300|600|-|2N16|3N20|-|N32|40|-|Grid A-B|Zone A|Level 1|-|Main beam
+SF1|StripFooting|1|1000|-|650|N16@200|N16@200|-|N32|75|-|Perimeter|All|Ground|-|Continuous footing
 ```
 
 COLUMN DEFINITIONS:
 - ID: Element mark/designation (e.g., PF.1, C-12, BM-A-23)
 - TYPE: Element type (IsolatedFooting, RectangularColumn, RectangularBeam, etc.)
 - PAGE: Page number where element is shown
-- QTY: Quantity (number of identical elements, or length for linear elements with unit)
 - WIDTH: Width in mm
 - LENGTH: Length in mm (or height for vertical elements)
 - DEPTH: Depth/thickness in mm
@@ -228,15 +239,24 @@ COLUMN DEFINITIONS:
 - NOTES: Critical info (embedment, special conditions, references to details)
 
 RESPONSE REQUIREMENTS:
-- **CRITICAL**: Extract ALL concrete elements. Do NOT stop after a few examples.
-- If you see a schedule/table with multiple rows, extract EVERY row
-- Only include elements with confidence >= 0.7
-- Use dash - for missing/unknown values
+- **CRITICAL**: Extract ONLY elements from schedules/tables
+- Each element MUST have a valid ID (mark/designation) - skip rows without IDs
+- Each element MUST have at least one dimension (width, length, depth, or diameter)
+- Extract EVERY row from schedules/tables that has BOTH a valid ID AND dimensions
+- Skip rows without proper IDs (empty, "-", just numbers, or descriptive text)
+- Skip rows without dimensions or with placeholder values ("varies", "TBD", "see detail")
+- Use dash - for missing/unknown values (but ID and dimensions must be present)
 - Keep NOTES column brief (max 50 chars)
 - Output ONLY the table, no explanatory text before or after
 - Include the header row first, then all data rows
 
-IMPORTANT: Your response must be ONLY the pipe-delimited table.
+🎯 SPECIAL CASE - NO ELEMENTS FOUND:
+If NO valid elements exist (no schedules/tables with proper IDs and dimensions), respond with:
+NO ELEMENTS
+
+Do NOT output empty table headers - just respond "NO ELEMENTS" to save tokens.
+
+IMPORTANT: Your response must be ONLY the pipe-delimited table OR "NO ELEMENTS".
 Do not include markdown code fences, explanations, or any other text.
 
 BEGIN EXTRACTION:
