@@ -536,6 +536,108 @@ class AnthropicProvider(BaseLLMProvider):
             )
 
 
+class GoogleProvider(BaseLLMProvider):
+    """Provider for Google Gemini models"""
+    
+    def get_required_modules(self) -> List[str]:
+        return ['google.generativeai']
+    
+    async def call_api(
+        self, 
+        model_name: str, 
+        api_key: str, 
+        messages: Optional[List[Dict[str, str]]], 
+        prompt: Optional[str], 
+        api_type: str,
+        stream: bool = False,
+        **kwargs
+    ) -> LLMResponse:
+        """Call Google Gemini API"""
+        start_time = time.time()
+        
+        try:
+            import google.generativeai as genai
+            
+            # Configure API key
+            genai.configure(api_key=api_key)
+            
+            # Get the model
+            model = genai.GenerativeModel(model_name)
+            
+            # Convert messages to Gemini format if needed
+            if messages:
+                # Combine messages into a single prompt
+                prompt_parts = []
+                for msg in messages:
+                    role = msg.get('role', 'user')
+                    content = msg.get('content', '')
+                    if role == 'system':
+                        prompt_parts.append(f"System: {content}")
+                    elif role == 'user':
+                        prompt_parts.append(f"User: {content}")
+                    elif role == 'assistant':
+                        prompt_parts.append(f"Assistant: {content}")
+                prompt = "\n\n".join(prompt_parts)
+            
+            # Set generation config
+            generation_config = {
+                'temperature': kwargs.get('temperature', 0.1),
+                'max_output_tokens': kwargs.get('max_tokens', 8000),
+            }
+            
+            # Generate content
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config
+            )
+            
+            # Extract content
+            content = response.text if hasattr(response, 'text') else ''
+            
+            # Estimate tokens (Gemini provides usage metadata)
+            tokens_input = 0
+            tokens_output = 0
+            
+            if hasattr(response, 'usage_metadata'):
+                tokens_input = getattr(response.usage_metadata, 'prompt_token_count', 0)
+                tokens_output = getattr(response.usage_metadata, 'candidates_token_count', 0)
+            else:
+                # Fallback estimation
+                tokens_input = len(prompt) // 4
+                tokens_output = len(content) // 4
+            
+            # Calculate cost
+            calculated_cost = await UnifiedLLMClient._calculate_cost(
+                provider_slug='google',
+                model_name=model_name,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output
+            )
+            
+            return LLMResponse(
+                content=content,
+                tokens_input=tokens_input,
+                tokens_output=tokens_output,
+                latency_ms=int((time.time() - start_time) * 1000),
+                cost=calculated_cost,
+                raw_response={'text': content, 'usage': {'input_tokens': tokens_input, 'output_tokens': tokens_output}}
+            )
+            
+        except Exception as e:
+            error_type = type(e).__name__
+            logger.error(f"Google API error ({error_type}): {str(e)}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            
+            return LLMResponse(
+                content=f"I'm having trouble with Google Gemini services. {str(e)}",
+                tokens_input=0,
+                tokens_output=0,
+                latency_ms=int((time.time() - start_time) * 1000),
+                cost=Decimal('0.00'),
+                raw_response={"error": str(e), "type": error_type}
+            )
+
+
 class UnifiedLLMClient:
     """Dynamic unified client for multiple LLM providers"""
     
@@ -544,6 +646,7 @@ class UnifiedLLMClient:
         'openai': OpenAIProvider,
         'anthropic': AnthropicProvider,
         'qwen': OpenAIProvider,  # Qwen uses OpenAI-compatible API
+        'google': GoogleProvider,  # Google Gemini with native API
     }
     
     @classmethod

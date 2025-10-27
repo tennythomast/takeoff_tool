@@ -37,10 +37,10 @@ async def run_test():
     service = LLMExtractionService()
     
     try:
-        # Look for the most recent document with title 'stockland.pdf'
-        documents = await sync_to_async(lambda: list(Document.objects.filter(title='stockland.pdf').order_by('-created_at')))()
+        # Look for the most recent document with title 'test_file3.pdf'
+        documents = await sync_to_async(lambda: list(Document.objects.filter(title='test_file3.pdf').order_by('-created_at')))()
         if not documents:
-            raise Document.DoesNotExist("No documents found with title 'stockland.pdf'")
+            raise Document.DoesNotExist("No documents found with title 'test_file3.pdf'")
         
         document = documents[0]  # Get the most recent document
         print(f"Found existing document: {document.title} (ID: {document.id})")
@@ -54,10 +54,10 @@ async def run_test():
         drawing = await sync_to_async(lambda: Drawing.objects.filter(rag_document=document).first())()
         if drawing:
             # Update the drawing title to match the actual file name
-            if drawing.drawing_title != "stockland.pdf":
-                drawing.drawing_title = "stockland.pdf"
+            if drawing.drawing_title != "test_file3.pdf":
+                drawing.drawing_title = "test_file3.pdf"
                 await sync_to_async(drawing.save)()
-                print(f"Updated existing drawing title to 'stockland.pdf' (ID: {drawing.id})")
+                print(f"Updated existing drawing title to 'test_file3.pdf' (ID: {drawing.id})")
             else:
                 print(f"Using existing drawing: {drawing.drawing_title} (ID: {drawing.id})")
         else:
@@ -89,7 +89,7 @@ async def run_test():
                 project="Test Project",
                 location="Test Location",
                 drawing_number=unique_drawing_number,
-                drawing_title="stockland.pdf",  # Updated to match the actual file name
+                drawing_title="test_file3.pdf",  # Updated to match the actual file name
                 date=datetime.now().date(),
                 page_count=page_count,
                 rag_document=document
@@ -220,7 +220,7 @@ async def run_test():
             print(f"❌ Extraction failed: {result['error']}")
             
     except Document.DoesNotExist:
-        print("❌ Document 'stockland.pdf' not found in the database.")
+        print("❌ Document 'test_file3.pdf' not found in the database.")
         print("Please run the process_document command first to create the document.")
     except Exception as e:
         print(f"❌ Error: {str(e)}")
