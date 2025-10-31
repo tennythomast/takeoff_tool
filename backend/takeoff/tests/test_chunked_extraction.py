@@ -23,7 +23,7 @@ django.setup()
 from asgiref.sync import sync_to_async
 from rag_service.models import Document
 from takeoff.models import Drawing, TakeoffExtraction, TakeoffElement
-from takeoff.services.llm_extraction_chunked import ChunkedLLMExtractionService
+from takeoff.services.extractors.llm_extraction_chunked import ChunkedLLMExtractionService
 from core.models import Organization, User
 
 
@@ -135,7 +135,7 @@ async def run_test():
         
         if result['success']:
             print(f"\n✅ Successfully extracted {result['element_count']} elements")
-            print(f"   Chunks processed: {result['chunks_processed']}")
+            print(f"   Pages processed: {result.get('pages_processed', result.get('chunks_processed', 'N/A'))}")
             print(f"   Total cost: ${result['total_cost_usd']:.4f}")
             print(f"   Processing time: {result['processing_time_ms']}ms")
             
@@ -193,7 +193,7 @@ async def run_test():
                     'timestamp': datetime.now().isoformat(),
                     'extraction_status': new_extraction.status,
                     'processing_time_ms': result['processing_time_ms'],
-                    'chunks_processed': result['chunks_processed'],
+                    'pages_processed': result.get('pages_processed', result.get('chunks_processed', 0)),
                     'total_cost_usd': result['total_cost_usd'],
                     'element_count': len(new_elements)
                 },

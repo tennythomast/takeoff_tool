@@ -25,7 +25,7 @@ from modelhub.services.llm_router import EnhancedLLMRouter
 from modelhub.services.routing.types import RequestContext, EntityType, OptimizationStrategy
 
 from takeoff.models import Drawing, TakeoffExtraction, TakeoffElement
-from takeoff.prompts.trades.concrete import ConcreteExtractionPrompt
+from takeoff.prompts.trades.concrete_prompts import ConcreteExtractionPrompt
 from takeoff.prompts.components.rules import get_combined_rules
 
 logger = logging.getLogger(__name__)

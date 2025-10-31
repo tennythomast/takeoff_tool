@@ -1,5 +1,13 @@
 # takeoff/services/takeoff_processor.py (SIMPLIFIED)
 
+import logging
+from typing import Dict
+from takeoff.services.validation.schema_validator import SchemaValidator
+from takeoff.models import TakeoffElement
+
+logger = logging.getLogger(__name__)
+
+
 class TakeoffProcessor:
     """Single-phase extraction processor"""
     
