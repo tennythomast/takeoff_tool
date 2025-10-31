@@ -28,7 +28,7 @@ django.setup()
 from asgiref.sync import sync_to_async
 from rag_service.models import Document, DocumentPage, KnowledgeBase
 from takeoff.models import Drawing, TakeoffExtraction, TakeoffElement
-from takeoff.services.llm_extraction import LLMExtractionService
+from takeoff.services.extractors.llm_extraction import LLMExtractionService
 
 
 async def run_test():

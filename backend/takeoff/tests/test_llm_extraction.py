@@ -19,8 +19,8 @@ from django.conf import settings
 
 from rag_service.models import Document, DocumentPage, KnowledgeBase
 from takeoff.models import Drawing, TakeoffExtraction, TakeoffElement
-from takeoff.services.llm_extraction import LLMExtractionService
-from takeoff.services.schema_validator import SchemaValidator
+from takeoff.services.extractors.llm_extraction import LLMExtractionService
+from takeoff.services.validation.schema_validator import SchemaValidator
 from core.models import Organization
 
 
@@ -140,7 +140,7 @@ class TestLLMExtractionWithRealData(TestCase):
         """Set up for each test"""
         self.service = LLMExtractionService()
     
-    @patch('takeoff.services.llm_extraction.LLMExtractionService._call_llm')
+    @patch('takeoff.services.extractors.llm_extraction.LLMExtractionService._call_llm')
     async def test_extraction_with_real_document(self, mock_call_llm):
         """Test extraction using real document data from the database"""
         # Check if we have existing extractions for this document
@@ -215,7 +215,7 @@ class TestLLMExtractionWithRealData(TestCase):
         self.assertEqual(element.element_id, "F-01")
         self.assertEqual(element.specifications["dimensions"]["width_mm"], 1200)
     
-    @patch('takeoff.services.llm_extraction.LLMExtractionService._call_llm')
+    @patch('takeoff.services.extractors.llm_extraction.LLMExtractionService._call_llm')
     async def test_extraction_prompt_generation(self, mock_call_llm):
         """Test that the prompt is correctly generated from document pages"""
         # Mock the LLM response

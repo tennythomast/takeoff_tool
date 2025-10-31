@@ -2,7 +2,7 @@
 
 from typing import Tuple, List
 import logging
-from ..schemas import ELEMENT_SCHEMAS
+from takeoff.schemas import ELEMENT_SCHEMAS
 
 logger = logging.getLogger(__name__)
 

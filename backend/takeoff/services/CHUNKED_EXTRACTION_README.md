@@ -99,7 +99,7 @@ docker exec takeoff_tool-backend-1 python /app/backend/takeoff/tests/test_chunke
 ### Using in Code
 
 ```python
-from takeoff.services.llm_extraction_chunked import ChunkedLLMExtractionService
+from takeoff.services.extractors.llm_extraction_chunked import ChunkedLLMExtractionService
 
 service = ChunkedLLMExtractionService()
 
@@ -215,7 +215,7 @@ After implementation, test with:
 If needed, simply use the original service:
 
 ```python
-from takeoff.services.llm_extraction import LLMExtractionService
+from takeoff.services.extractors.llm_extraction import LLMExtractionService
 ```
 
 The original service remains unchanged and fully functional.
