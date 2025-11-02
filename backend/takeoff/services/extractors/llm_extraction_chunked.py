@@ -851,20 +851,68 @@ Do NOT output table headers for empty pages - just respond "NO ELEMENTS" to save
         return element
     
     def _parse_reinforcement(self, reinf_str: str) -> Dict:
-        """Parse reinforcement string like 'N16@200' or 'SL92'"""
+        """
+        Parse reinforcement string like 'N16@200', 'N24@200-EW', '6-N24', 'SL92'
+        
+        Handles:
+        - Bar size and spacing: N16@200, N24@150-EW, N20@200-BW
+        - Bar count: 6-N24, 8N20, 12N28
+        - Fabric mesh: SL92, SL102
+        - Direction suffixes: -EW (each way), -BW (both ways)
+        """
         if '@' in reinf_str:
-            # Format: bar_size@spacing
+            # Format: bar_size@spacing (with optional direction suffix)
             parts = reinf_str.split('@')
-            return {
-                'bar_size': parts[0],
-                'spacing_mm': int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else None,
-                'direction': 'both_ways'
+            bar_size = parts[0].strip()
+            spacing_part = parts[1].strip() if len(parts) > 1 else ''
+            
+            # Extract direction suffix if present
+            direction = None
+            spacing_str = spacing_part
+            
+            if '-EW' in spacing_part.upper():
+                direction = 'each_way'
+                spacing_str = spacing_part.upper().replace('-EW', '').strip()
+            elif '-BW' in spacing_part.upper():
+                direction = 'both_ways'
+                spacing_str = spacing_part.upper().replace('-BW', '').strip()
+            
+            # Extract numeric spacing
+            spacing_mm = None
+            if spacing_str.isdigit():
+                spacing_mm = int(spacing_str)
+            else:
+                # Try to extract numbers from the string
+                import re
+                numbers = re.findall(r'\d+', spacing_str)
+                if numbers:
+                    spacing_mm = int(numbers[0])
+            
+            result = {
+                'bar_size': bar_size,
+                'spacing_mm': spacing_mm,
+                'full_specification': reinf_str  # Keep original for reference
             }
+            
+            if direction:
+                result['direction'] = direction
+            
+            return result
         else:
-            # Format: fabric type
+            # Check if it's a bar count format (e.g., "6-N24", "8N20")
+            import re
+            bar_count_match = re.match(r'^(\d+)[-\s]?([NRn]\d+)$', reinf_str)
+            if bar_count_match:
+                return {
+                    'bar_count': int(bar_count_match.group(1)),
+                    'bar_size': bar_count_match.group(2).upper(),
+                    'full_specification': reinf_str
+                }
+            
+            # Format: fabric type or other specification
             return {
                 'fabric_type': reinf_str,
-                'direction': 'both_ways'
+                'full_specification': reinf_str
             }
     
     def _normalize_elements(self, elements: List[Dict]) -> List[Dict]:
