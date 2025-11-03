@@ -38,10 +38,10 @@ async def run_test():
     service = ChunkedLLMExtractionService()
     
     try:
-        # Look for the most recent document with title 'GWYNNE ST CREMORNE.pdf'
-        documents = await sync_to_async(lambda: list(Document.objects.filter(title='GWYNNE ST CREMORNE.pdf').order_by('-created_at')))()
+        # Look for the most recent document with title '7_FLETT_RD.pdf'
+        documents = await sync_to_async(lambda: list(Document.objects.filter(title='7_FLETT_RD.pdf').order_by('-created_at')))()
         if not documents:
-            raise Document.DoesNotExist("No documents found with title 'GWYNNE ST CREMORNE.pdf'")
+            raise Document.DoesNotExist("No documents found with title '7_FLETT_RD.pdf'")
         
         document = documents[0]  # Get the most recent document
         print(f"Found existing document: {document.title} (ID: {document.id})")
@@ -54,10 +54,10 @@ async def run_test():
         drawing = await sync_to_async(lambda: Drawing.objects.filter(rag_document=document).first())()
         if drawing:
             # Update the drawing title to match the actual file name
-            if drawing.drawing_title != "GWYNNE ST CREMORNE.pdf":
-                drawing.drawing_title = "GWYNNE ST CREMORNE.pdf"
+            if drawing.drawing_title != "7_FLETT_RD.pdf":
+                drawing.drawing_title = "7_FLETT_RD.pdf"
                 await sync_to_async(drawing.save)()
-                print(f"Updated existing drawing title to 'GWYNNE ST CREMORNE.pdf' (ID: {drawing.id})")
+                print(f"Updated existing drawing title to '7_FLETT_RD.pdf' (ID: {drawing.id})")
             else:
                 print(f"Using existing drawing: {drawing.drawing_title} (ID: {drawing.id})")
         else:
@@ -86,7 +86,7 @@ async def run_test():
                 project="Test Project",
                 location="Test Location",
                 drawing_number=unique_drawing_number,
-                drawing_title="GWYNNE ST CREMORNE.pdf",  # Updated to match the actual file name
+                drawing_title="7_FLETT_RD.pdf",  # Updated to match the actual file name
                 date=datetime.now().date(),
                 page_count=page_count,
                 rag_document=document
@@ -218,7 +218,7 @@ async def run_test():
             print(f"\n❌ Extraction failed: {result['error']}")
             
     except Document.DoesNotExist:
-        print("❌ Document 'GWYNNE ST CREMORNE.pdf' not found in the database.")
+        print("❌ Document '7_FLETT_RD.pdf' not found in the database.")
         print("Please run the process_document command first to create the document.")
     except Exception as e:
         print(f"❌ Error: {str(e)}")
