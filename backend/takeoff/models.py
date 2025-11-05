@@ -1,587 +1,379 @@
-"""
-Extraction result models
-"""
+from django.db import models
+from django.utils import timezone
+from django.contrib.auth import get_user_model
+from core.models import BaseModel, SoftDeletableMixin, SoftDeletableManager
+from core.models import Organization
 
-from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Tuple
-from datetime import datetime
-from enum import Enum
 
-# ============================================================================
-# Shape Models
-# ============================================================================
+class Drawing(SoftDeletableMixin):
+    """
+    Drawing model that stores fixed metadata in a relational structure.
+    
+    This model represents engineering drawings with standardized metadata
+    that is consistent across all drawings in the system.
+    """
+    # Relationships
+    organization = models.ForeignKey(
+        Organization, 
+        on_delete=models.CASCADE, 
+        related_name='drawings'
+    )
+    created_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_drawings'
+    )
+    
+    # Basic information
+    client = models.CharField(max_length=255, db_index=True)
+    project = models.CharField(max_length=255, db_index=True)
+    location = models.CharField(max_length=255)
+    drawing_number = models.CharField(max_length=100, db_index=True)
+    drawing_title = models.CharField(max_length=500)
+    date = models.DateField()
+    revision = models.CharField(max_length=50, blank=True)
+    scale = models.CharField(max_length=50, blank=True)
+    page_count = models.IntegerField(default=1)
+    
+    # File information
+    file_path = models.CharField(max_length=1000, blank=True)
+    file_size = models.BigIntegerField(default=0)
+    file_type = models.CharField(max_length=50, default='pdf')
+    
+    # Link to RAG document if available
+    rag_document = models.ForeignKey(
+        'rag_service.Document',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='drawings'
+    )
+    
+    # Additional metadata
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    objects = SoftDeletableManager()
+    
+    class Meta:
+        db_table = 'takeoff_drawing'
+        verbose_name = 'Drawing'
+        verbose_name_plural = 'Drawings'
+        ordering = ['-created_at']
+        unique_together = ['organization', 'drawing_number']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['client', 'project']),
+        ]
+    
+    def __str__(self):
+        return f"{self.drawing_number}: {self.drawing_title}"
 
-class ShapeType(Enum):
-    CIRCLE = "circle"
-    RECTANGLE = "rectangle"
-    SQUARE = "square"
-    POLYGON = "polygon"
-    ELLIPSE = "ellipse"
-    UNKNOWN = "unknown"
 
-class LineStyle(Enum):
-    SOLID = "solid"
-    DASHED = "dashed"
-    DOTTED = "dotted"
-    DASH_DOT = "dash_dot"
+class TakeoffElement(SoftDeletableMixin):
+    """
+    Flexible element data - hybrid
+    
+    Each element represents a specific item from an engineering drawing
+    that has been identified during the takeoff process.
+    """
+    # Relationships
+    drawing = models.ForeignKey(
+        Drawing, 
+        on_delete=models.CASCADE,
+        related_name='elements'
+    )
+    extraction = models.ForeignKey(
+        'TakeoffExtraction',
+        on_delete=models.CASCADE,
+        related_name='element_items',
+        null=True,
+        blank=True
+    )
+    
+    # Element identification
+    element_id = models.CharField(max_length=100, db_index=True)
+    element_type = models.CharField(max_length=100, db_index=True)
+    page_number = models.IntegerField(default=1, help_text='Page number where this element was found')
+    
+    # JSON! Flexible, extensible, queryable
+    specifications = models.JSONField(default=dict)
+    location = models.JSONField(default=dict, blank=True)
+    extraction_notes = models.JSONField(default=dict, blank=True, help_text='Notes and metadata from the extraction process')
+    
+    # Metadata
+    confidence_score = models.FloatField(default=0.0)
+    verified = models.BooleanField(default=False)
+    verified_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_elements'
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    
+    objects = SoftDeletableManager()
+    
+    class Meta:
+        db_table = 'takeoff_element'
+        verbose_name = 'Takeoff Element'
+        verbose_name_plural = 'Takeoff Elements'
+        ordering = ['drawing', 'element_type', 'element_id']
+        indexes = [
+            models.Index(fields=['drawing', 'element_type']),
+            models.Index(fields=['element_id']),
+            models.Index(fields=['verified']),
+            models.Index(fields=['page_number']),
+        ]
+        unique_together = ['drawing', 'element_id']
+    
+    def __str__(self):
+        return f"{self.element_type} {self.element_id}"
+    
+    def save(self, *args, **kwargs):
+        # Update verified_at timestamp if verified
+        if self.verified and not self.verified_at:
+            self.verified_at = timezone.now()
+            
+        super().save(*args, **kwargs)
 
-@dataclass
-class Point:
-    x: float
-    y: float
-    
-    def distance_to(self, other: 'Point') -> float:
-        """Calculate Euclidean distance to another point"""
-        return ((self.x - other.x)**2 + (self.y - other.y)**2)**0.5
 
-@dataclass
-class BoundingBox:
-    x0: float
-    y0: float
-    x1: float
-    y1: float
+class TakeoffExtraction(SoftDeletableMixin):
+    """
+    TakeoffExtraction model that stores metadata for each extraction process.
     
-    @property
-    def width(self) -> float:
-        return abs(self.x1 - self.x0)
+    This model links to the Drawing and contains metadata about the extraction process,
+    while the actual extracted elements are stored in a flexible JSON structure.
+    """
+    # Extraction status options
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('processing', 'Processing'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('verified', 'Verified'),
+    ]
     
-    @property
-    def height(self) -> float:
-        return abs(self.y1 - self.y0)
+    # Extraction method options
+    METHOD_CHOICES = [
+        ('manual', 'Manual Entry'),
+        ('rule_based', 'Rule-based Extraction'),
+        ('ai_assisted', 'AI-assisted Extraction'),
+        ('imported', 'Imported from External Source'),
+    ]
     
-    @property
-    def center(self) -> Point:
-        return Point(
-            x=(self.x0 + self.x1) / 2,
-            y=(self.y0 + self.y1) / 2
-        )
+    # Relationships
+    drawing = models.ForeignKey(
+        Drawing, 
+        on_delete=models.CASCADE,
+        related_name='extractions'
+    )
+    created_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_extractions'
+    )
+    verified_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='verified_extractions'
+    )
     
-    @property
-    def area(self) -> float:
-        return self.width * self.height
+    # Extraction information
+    extraction_date = models.DateTimeField(default=timezone.now)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        db_index=True
+    )
+    extraction_method = models.CharField(
+        max_length=20,
+        choices=METHOD_CHOICES,
+        default='rule_based',
+        db_index=True
+    )
     
-    @property
-    def diagonal(self) -> float:
-        return (self.width**2 + self.height**2)**0.5
+    # Processing information
+    processing_time_ms = models.IntegerField(default=0)
+    processing_error = models.TextField(blank=True)
+    extraction_cost_usd = models.DecimalField(
+        max_digits=10,
+        decimal_places=6,
+        default=0
+    )
     
-    def contains_point(self, point: Point) -> bool:
-        """Check if a point is inside this bounding box"""
-        return (self.x0 <= point.x <= self.x1 and 
-                self.y0 <= point.y <= self.y1)
+    # Quality metrics
+    confidence_score = models.FloatField(
+        default=0.0,
+        help_text="Overall confidence score for the extraction (0-1)"
+    )
+    verified = models.BooleanField(
+        default=False,
+        help_text="Whether this extraction has been verified by a user"
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
     
-    def to_dict(self) -> dict:
-        return {
-            'x0': self.x0,
-            'y0': self.y0,
-            'x1': self.x1,
-            'y1': self.y1,
-            'width': self.width,
-            'height': self.height,
-            'center': {'x': self.center.x, 'y': self.center.y}
-        }
-
-@dataclass
-class ShapeStyle:
-    stroke_width: float
-    stroke_color: Tuple[float, float, float]  # RGB 0-1
-    fill_color: Optional[Tuple[float, float, float]] = None
-    line_style: LineStyle = LineStyle.SOLID
-    opacity: float = 1.0
+    # Extracted elements - flexible JSON structure
+    elements = models.JSONField(
+        default=dict,
+        help_text="Flexible JSON structure containing all extracted takeoff elements"
+    )
     
-    def is_valid_element_style(self) -> bool:
-        """Check if this style is typical for element symbols"""
-        # Element symbols typically have:
-        # - Medium stroke width (1-6 points)
-        # - Solid lines
-        # - Dark stroke color
+    # Statistics
+    element_count = models.IntegerField(default=0)
+    
+    objects = SoftDeletableManager()
+    
+    class Meta:
+        db_table = 'takeoff_extraction'
+        verbose_name = 'Takeoff Extraction'
+        verbose_name_plural = 'Takeoff Extractions'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['drawing', 'is_active']),
+            models.Index(fields=['status', 'extraction_method']),
+            models.Index(fields=['verified']),
+        ]
+    
+    def __str__(self):
+        return f"Extraction {self.id} for {self.drawing}"
+    
+    def save(self, *args, **kwargs):
+        # Update element count before saving
+        if isinstance(self.elements, dict) and 'items' in self.elements:
+            self.element_count = len(self.elements.get('items', []))
         
-        if not (1.0 <= self.stroke_width <= 6.0):
-            return False
+        # Update verified_at timestamp if verified
+        if self.verified and not self.verified_at:
+            self.verified_at = timezone.now()
+            
+        super().save(*args, **kwargs)
         
-        if self.line_style != LineStyle.SOLID:
-            return False
+        # Create TakeoffElement objects from elements JSON if needed
+        if isinstance(self.elements, dict) and 'items' in self.elements:
+            self.create_element_objects()
+    
+    def create_element_objects(self):
+        """Create TakeoffElement objects from elements JSON"""
+        # Import here to avoid circular import
+        from .models import TakeoffElement
         
-        # Check stroke color (should be dark)
-        r, g, b = self.stroke_color
-        avg_color = (r + g + b) / 3
-        if avg_color > 0.5:  # Too light
-            return False
-        
-        return True
-
-@dataclass
-class Circle:
-    center: Point
-    radius: float
-    style: ShapeStyle
-    page_number: int
-    
-    @property
-    def bbox(self) -> BoundingBox:
-        return BoundingBox(
-            x0=self.center.x - self.radius,
-            y0=self.center.y - self.radius,
-            x1=self.center.x + self.radius,
-            y1=self.center.y + self.radius
-        )
-    
-    @property
-    def diameter(self) -> float:
-        return self.radius * 2
-    
-    @property
-    def diameter_mm(self) -> float:
-        """Convert diameter from points to mm"""
-        return self.diameter / 2.834645
-    
-    def contains_point(self, point: Point) -> bool:
-        """Check if point is inside circle"""
-        return self.center.distance_to(point) <= self.radius
-    
-    def distance_to_point(self, point: Point) -> float:
-        """Distance from circle edge to point"""
-        return abs(self.center.distance_to(point) - self.radius)
-    
-    def to_dict(self) -> dict:
-        return {
-            'type': 'circle',
-            'center': {'x': self.center.x, 'y': self.center.y},
-            'radius': self.radius,
-            'diameter': self.diameter,
-            'diameter_mm': self.diameter_mm,
-            'bbox': self.bbox.to_dict(),
-            'style': {
-                'stroke_width': self.style.stroke_width,
-                'stroke_color': self.style.stroke_color,
-                'fill_color': self.style.fill_color,
-                'line_style': self.style.line_style.value
-            },
-            'page_number': self.page_number
-        }
-
-@dataclass
-class Rectangle:
-    bbox: BoundingBox
-    style: ShapeStyle
-    page_number: int
-    rounded_corners: bool = False
-    
-    @property
-    def center(self) -> Point:
-        return self.bbox.center
-    
-    @property
-    def width(self) -> float:
-        return self.bbox.width
-    
-    @property
-    def height(self) -> float:
-        return self.bbox.height
-    
-    @property
-    def width_mm(self) -> float:
-        return self.width / 2.834645
-    
-    @property
-    def height_mm(self) -> float:
-        return self.height / 2.834645
-    
-    @property
-    def aspect_ratio(self) -> float:
-        """Width / Height ratio"""
-        return self.width / self.height if self.height > 0 else 0
-    
-    @property
-    def is_square(self) -> bool:
-        """Check if rectangle is approximately square"""
-        return 0.9 <= self.aspect_ratio <= 1.1
-    
-    def contains_point(self, point: Point) -> bool:
-        """Check if point is inside rectangle"""
-        return self.bbox.contains_point(point)
-    
-    def distance_to_point(self, point: Point) -> float:
-        """Minimum distance from rectangle edge to point"""
-        if self.contains_point(point):
-            return 0.0
-        
-        dx = max(self.bbox.x0 - point.x, 0, point.x - self.bbox.x1)
-        dy = max(self.bbox.y0 - point.y, 0, point.y - self.bbox.y1)
-        return (dx**2 + dy**2)**0.5
-    
-    def to_dict(self) -> dict:
-        return {
-            'type': 'rectangle' if not self.is_square else 'square',
-            'bbox': self.bbox.to_dict(),
-            'width': self.width,
-            'height': self.height,
-            'width_mm': self.width_mm,
-            'height_mm': self.height_mm,
-            'aspect_ratio': self.aspect_ratio,
-            'is_square': self.is_square,
-            'rounded_corners': self.rounded_corners,
-            'style': {
-                'stroke_width': self.style.stroke_width,
-                'stroke_color': self.style.stroke_color,
-                'fill_color': self.style.fill_color,
-                'line_style': self.style.line_style.value
-            },
-            'page_number': self.page_number
-        }
-
-@dataclass
-class Polygon:
-    vertices: List[Point]
-    style: ShapeStyle
-    page_number: int
-    
-    @property
-    def vertex_count(self) -> int:
-        return len(self.vertices)
-    
-    @property
-    def bbox(self) -> BoundingBox:
-        x_coords = [v.x for v in self.vertices]
-        y_coords = [v.y for v in self.vertices]
-        return BoundingBox(
-            x0=min(x_coords),
-            y0=min(y_coords),
-            x1=max(x_coords),
-            y1=max(y_coords)
-        )
-    
-    @property
-    def center(self) -> Point:
-        return self.bbox.center
-    
-    @property
-    def shape_type(self) -> str:
-        """Classify polygon by vertex count"""
-        if self.vertex_count == 3:
-            return "triangle"
-        elif self.vertex_count == 5:
-            return "pentagon"
-        elif self.vertex_count == 6:
-            return "hexagon"
-        elif self.vertex_count == 8:
-            return "octagon"
-        else:
-            return f"polygon_{self.vertex_count}"
-    
-    def contains_point(self, point: Point) -> bool:
-        """Check if point is inside polygon using ray casting"""
-        x, y = point.x, point.y
-        n = len(self.vertices)
-        inside = False
-        
-        p1 = self.vertices[0]
-        for i in range(1, n + 1):
-            p2 = self.vertices[i % n]
-            if y > min(p1.y, p2.y):
-                if y <= max(p1.y, p2.y):
-                    if x <= max(p1.x, p2.x):
-                        if p1.y != p2.y:
-                            xinters = (y - p1.y) * (p2.x - p1.x) / (p2.y - p1.y) + p1.x
-                        if p1.x == p2.x or x <= xinters:
-                            inside = not inside
-            p1 = p2
-        
-        return inside
-    
-    def distance_to_point(self, point: Point) -> float:
-        """Approximate distance from polygon edge to point"""
-        if self.contains_point(point):
-            return 0.0
-        
-        # Use bounding box as approximation
-        return Rectangle(
-            bbox=self.bbox,
-            style=self.style,
-            page_number=self.page_number
-        ).distance_to_point(point)
-    
-    def to_dict(self) -> dict:
-        return {
-            'type': 'polygon',
-            'shape_type': self.shape_type,
-            'vertex_count': self.vertex_count,
-            'vertices': [{'x': v.x, 'y': v.y} for v in self.vertices],
-            'bbox': self.bbox.to_dict(),
-            'style': {
-                'stroke_width': self.style.stroke_width,
-                'stroke_color': self.style.stroke_color,
-                'fill_color': self.style.fill_color,
-                'line_style': self.style.line_style.value
-            },
-            'page_number': self.page_number
-        }
-
-# Union type for all shapes
-Shape = Circle | Rectangle | Polygon
-
-# ============================================================================
-# Element Models
-# ============================================================================
-
-class ElementType(Enum):
-    # Structural
-    BORED_PIER = "bored_pier"
-    PAD_FOOTING = "pad_footing"
-    STRIP_FOOTING = "strip_footing"
-    COLUMN = "column"
-    BEAM = "beam"
-    PILE = "pile"
-    
-    # Architectural
-    DOOR = "door"
-    WINDOW = "window"
-    ROOM = "room"
-    
-    # MEP
-    EQUIPMENT = "equipment"
-    FIXTURE = "fixture"
-    OUTLET = "outlet"
-    
-    # Civil
-    MANHOLE = "manhole"
-    CATCH_BASIN = "catch_basin"
-    VALVE = "valve"
-    
-    # Generic
-    UNKNOWN = "unknown"
-
-class TextPosition(Enum):
-    INSIDE = "inside"          # Text center inside shape
-    NEAR = "near"             # Text near shape (< 10mm)
-    LEADER = "leader"         # Text connected by leader line
-    DISTANT = "distant"       # Text too far, low confidence
-
-@dataclass
-class ElementPattern:
-    """Regex patterns for different element ID types"""
-    pattern: str
-    element_type: ElementType
-    description: str
-    
-    def matches(self, text: str) -> bool:
-        import re
-        return bool(re.match(self.pattern, text, re.IGNORECASE))
-
-# Common element ID patterns
-ELEMENT_PATTERNS = [
-    # Structural - Piers/Piles
-    ElementPattern(r'^BP\d+$', ElementType.BORED_PIER, "Bored Pier (BP1, BP2, etc.)"),
-    ElementPattern(r'^P\d+$', ElementType.PILE, "Pile (P1, P2, etc.)"),
-    
-    # Structural - Footings
-    ElementPattern(r'^PF\d+$', ElementType.PAD_FOOTING, "Pad Footing (PF1, PF2, etc.)"),
-    ElementPattern(r'^SF\d+$', ElementType.STRIP_FOOTING, "Strip Footing (SF1, SF2, etc.)"),
-    ElementPattern(r'^F\d+$', ElementType.PAD_FOOTING, "Footing (F1, F2, etc.)"),
-    
-    # Structural - Columns/Beams
-    ElementPattern(r'^C\d+$', ElementType.COLUMN, "Column (C1, C2, etc.)"),
-    ElementPattern(r'^B\d+$', ElementType.BEAM, "Beam (B1, B2, etc.)"),
-    
-    # Architectural
-    ElementPattern(r'^D\d+$', ElementType.DOOR, "Door (D1, D2, etc.)"),
-    ElementPattern(r'^W\d+$', ElementType.WINDOW, "Window (W1, W2, etc.)"),
-    ElementPattern(r'^\d{3}$', ElementType.ROOM, "Room number (101, 102, etc.)"),
-    
-    # MEP
-    ElementPattern(r'^EQ-?\d+$', ElementType.EQUIPMENT, "Equipment (EQ1, EQ-1, etc.)"),
-    ElementPattern(r'^[A-Z]{2,4}-?\d+$', ElementType.EQUIPMENT, "Equipment tag (HVAC-1, AHU1, etc.)"),
-    
-    # Civil
-    ElementPattern(r'^MH-?\d+$', ElementType.MANHOLE, "Manhole (MH1, MH-1, etc.)"),
-    ElementPattern(r'^CB-?\d+$', ElementType.CATCH_BASIN, "Catch Basin (CB1, CB-1, etc.)"),
-    ElementPattern(r'^V-?\d+$', ElementType.VALVE, "Valve (V1, V-1, etc.)"),
-]
-
-@dataclass
-class TextShapeAssociation:
-    """Association between text instance and shape"""
-    text_instance: Dict  # From vector text extractor
-    shape: Shape
-    position: TextPosition
-    distance: float  # Distance from shape to text center (in points)
-    confidence: float  # 0.0 to 1.0
-    
-    @property
-    def text(self) -> str:
-        return self.text_instance.get('text', '')
-    
-    @property
-    def text_center(self) -> Point:
-        center = self.text_instance.get('center', {})
-        return Point(x=center.get('x', 0), y=center.get('y', 0))
-    
-    def to_dict(self) -> dict:
-        return {
-            'text': self.text,
-            'text_bbox': self.text_instance.get('bbox'),
-            'text_center': {'x': self.text_center.x, 'y': self.text_center.y},
-            'shape': self.shape.to_dict(),
-            'position': self.position.value,
-            'distance': self.distance,
-            'distance_mm': self.distance / 2.834645,
-            'confidence': self.confidence
-        }
-
-@dataclass
-class DetectedElement:
-    """A detected element with shape and label"""
-    element_id: str
-    element_type: ElementType
-    location: Point
-    shape: Shape
-    associations: List[TextShapeAssociation]
-    page_number: int
-    confidence: float = 1.0
-    metadata: Dict = field(default_factory=dict)
-    
-    @property
-    def primary_text(self) -> str:
-        """Get the primary text label (usually the element ID)"""
-        if self.associations:
-            return max(self.associations, key=lambda a: a.confidence).text
-        return self.element_id
-    
-    @property
-    def shape_type(self) -> str:
-        if hasattr(self.shape, 'shape_type'):
-            return self.shape.shape_type
-        return self.shape.to_dict()['type']
-    
-    def to_dict(self) -> dict:
-        return {
-            'element_id': self.element_id,
-            'element_type': self.element_type.value,
-            'location': {'x': self.location.x, 'y': self.location.y},
-            'shape': self.shape.to_dict(),
-            'shape_type': self.shape_type,
-            'associations': [a.to_dict() for a in self.associations],
-            'page_number': self.page_number,
-            'confidence': self.confidence,
-            'metadata': self.metadata
-        }
-
-def classify_element_by_text(text: str) -> ElementType:
-    """Classify element type based on text pattern"""
-    for pattern in ELEMENT_PATTERNS:
-        if pattern.matches(text):
-            return pattern.element_type
-    return ElementType.UNKNOWN
-
-def classify_element_by_shape(shape: Shape, text: str = None) -> ElementType:
-    """Classify element type based on shape and optional text"""
-    shape_dict = shape.to_dict()
-    shape_type = shape_dict['type']
-    
-    # First, try text-based classification if available
-    if text:
-        text_type = classify_element_by_text(text)
-        if text_type != ElementType.UNKNOWN:
-            return text_type
-    
-    # Fallback to shape-based heuristics
-    if shape_type == 'circle':
-        diameter_mm = shape_dict.get('diameter_mm', 0)
-        if diameter_mm > 30:
-            return ElementType.BORED_PIER
-        elif diameter_mm > 20:
-            return ElementType.COLUMN
-        else:
-            return ElementType.PILE
-    
-    elif shape_type in ['rectangle', 'square']:
-        width_mm = shape_dict.get('width_mm', 0)
-        height_mm = shape_dict.get('height_mm', 0)
-        is_square = shape_dict.get('is_square', False)
-        
-        if is_square and width_mm < 40:
-            return ElementType.PAD_FOOTING
-        elif width_mm > 50:
-            return ElementType.EQUIPMENT
-        else:
-            return ElementType.PAD_FOOTING
-    
-    elif shape_type == 'hexagon':
-        return ElementType.STRIP_FOOTING
-    
-    return ElementType.UNKNOWN
-
-# ============================================================================
-# Extraction Result Models
-# ============================================================================
-
-@dataclass
-class PageShapes:
-    """Shapes extracted from a single page"""
-    page_number: int
-    page_size: Dict[str, float]
-    circles: List[Dict]
-    rectangles: List[Dict]
-    polygons: List[Dict]
-    total_shapes: int = 0
-    
-    def __post_init__(self):
-        self.total_shapes = len(self.circles) + len(self.rectangles) + len(self.polygons)
-
-@dataclass
-class PageElements:
-    """Elements detected on a single page"""
-    page_number: int
-    elements: List[Dict]
-    element_counts: Dict[str, int] = field(default_factory=dict)
-    
-    def __post_init__(self):
-        # Calculate element counts
-        for element in self.elements:
-            element_id = element.get('element_id')
-            if element_id:
-                self.element_counts[element_id] = self.element_counts.get(element_id, 0) + 1
-
-@dataclass
-class ElementCount:
-    """Count summary for a specific element ID"""
-    element_id: str
-    count: int
-    element_type: str
-    occurrences: List[Dict]  # List of locations where element appears
-    
-    def to_dict(self) -> dict:
-        return {
-            'element_id': self.element_id,
-            'count': self.count,
-            'element_type': self.element_type,
-            'occurrences': self.occurrences
-        }
-
-@dataclass
-class ExtractionResult:
-    """Complete extraction result"""
-    success: bool
-    file_path: str
-    timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    total_pages: int = 0
-    pages: List[PageElements] = field(default_factory=list)
-    summary: Dict = field(default_factory=dict)
-    error: Optional[str] = None
-    
-    def to_dict(self) -> dict:
-        return {
-            'success': self.success,
-            'file_path': self.file_path,
-            'timestamp': self.timestamp,
-            'total_pages': self.total_pages,
-            'pages': [
-                {
-                    'page_number': p.page_number,
-                    'elements': p.elements,
-                    'element_counts': p.element_counts
+        if not isinstance(self.elements, dict) or 'items' not in self.elements:
+            return
+            
+        items = self.elements.get('items', [])
+        for item in items:
+            element_id = item.get('element_id')
+            element_type = item.get('element_type')
+            
+            if not element_id or not element_type:
+                continue
+                
+            # Create or update element
+            element, created = TakeoffElement.objects.update_or_create(
+                drawing=self.drawing,
+                element_id=element_id,
+                defaults={
+                    'extraction': self,
+                    'element_type': element_type,
+                    'specifications': item.get('specifications', {}),
+                    'location': item.get('location', {}),
+                    'confidence_score': item.get('metadata', {}).get('confidence', 0.0)
                 }
-                for p in self.pages
-            ],
-            'summary': self.summary,
-            'error': self.error
-        }
+            )
+    
+    def update_element_count(self):
+        """Update element count based on related TakeoffElement objects"""
+        self.element_count = self.element_items.filter(is_active=True).count()
+        self.save(update_fields=['element_count'])
+
+
+class TakeoffProject(SoftDeletableMixin):
+    """
+    TakeoffProject model that groups related drawings and extractions.
+    
+    This model provides a way to organize drawings and extractions by project,
+    and to track project-level metrics and status.
+    """
+    # Relationships
+    organization = models.ForeignKey(
+        Organization, 
+        on_delete=models.CASCADE, 
+        related_name='takeoff_projects'
+    )
+    created_by = models.ForeignKey(
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_takeoff_projects'
+    )
+    
+    # Basic information
+    name = models.CharField(max_length=255, db_index=True)
+    description = models.TextField(blank=True)
+    client = models.CharField(max_length=255, db_index=True)
+    location = models.CharField(max_length=255, blank=True)
+    
+    # Dates
+    start_date = models.DateField(default=timezone.now)
+    due_date = models.DateField(null=True, blank=True)
+    completed_date = models.DateField(null=True, blank=True)
+    
+    # Status
+    STATUS_CHOICES = [
+        ('planning', 'Planning'),
+        ('in_progress', 'In Progress'),
+        ('review', 'Under Review'),
+        ('completed', 'Completed'),
+        ('archived', 'Archived'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='planning',
+        db_index=True
+    )
+    
+    # Statistics
+    drawing_count = models.IntegerField(default=0)
+    extraction_count = models.IntegerField(default=0)
+    verified_extraction_count = models.IntegerField(default=0)
+    
+    # Additional metadata
+    metadata = models.JSONField(default=dict, blank=True)
+    
+    objects = SoftDeletableManager()
+    
+    class Meta:
+        db_table = 'takeoff_project'
+        verbose_name = 'Takeoff Project'
+        verbose_name_plural = 'Takeoff Projects'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['organization', 'is_active']),
+            models.Index(fields=['status']),
+            models.Index(fields=['client']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} ({self.client})"
+    
+    def update_statistics(self):
+        """Update project statistics"""
+        self.drawing_count = self.drawings.filter(is_active=True).count()
+        self.extraction_count = TakeoffExtraction.objects.filter(
+            drawing__project=self,
+            is_active=True
+        ).count()
+        self.verified_extraction_count = TakeoffExtraction.objects.filter(
+            drawing__project=self,
+            is_active=True,
+            verified=True
+        ).count()
+        self.save(update_fields=['drawing_count', 'extraction_count', 'verified_extraction_count'])
+

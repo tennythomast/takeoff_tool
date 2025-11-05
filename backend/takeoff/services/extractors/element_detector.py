@@ -8,13 +8,16 @@ from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 from collections import defaultdict
 
-from takeoff.models.shapes import Shape, Circle, Rectangle, Polygon, Point
-from takeoff.models.elements import (
+from takeoff.shapes import (
+    # Shape models
+    Shape, Circle, Rectangle, Polygon, Point,
+    # Element models
     DetectedElement, TextShapeAssociation, TextPosition,
     ElementType, classify_element_by_text, classify_element_by_shape,
-    ELEMENT_PATTERNS
+    ELEMENT_PATTERNS,
+    # Result models
+    ExtractionResult, PageElements, ElementCount
 )
-from takeoff.models.extraction import ExtractionResult, PageElements, ElementCount
 
 from .vector_text_extractor import VectorTextExtractor
 from .vector_shape_extractor import VectorShapeExtractor

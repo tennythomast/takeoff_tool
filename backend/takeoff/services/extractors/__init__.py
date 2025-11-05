@@ -11,6 +11,7 @@ from .element_detector import (
     ElementDetectionConfig,
     find_elements_in_drawing
 )
+from .line_shape_detector import LineBasedShapeDetector
 
 __all__ = [
     'LLMExtractionService',
@@ -21,6 +22,7 @@ __all__ = [
     'ElementDetector',
     'ElementDetectionConfig',
     'find_elements_in_drawing',
+    'LineBasedShapeDetector'
 ]
 """
 Extractors package
