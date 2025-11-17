@@ -63,7 +63,7 @@ pandas>=2.0.0  # For DataFrame handling
 camelot-py[base]>=0.11.0  # For table extraction from PDFs
 pdfplumber>=0.10.0  # Alternative table extraction
 tabulate>=0.9.0  # For markdown table formatting
-ghost-script>=0.2.0  # For Camelot (optional)
+#ghost-script>=0.2.0  # For Camelot (optional)
 
 # Image processing dependencies
 Pillow>=10.0.0  # For image processing

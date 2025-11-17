@@ -3,10 +3,11 @@ from typing import List, Dict, Tuple, Optional
 import logging
 from dataclasses import dataclass
 
-from .models.shape_models import (
+from takeoff.shapes import (
     Circle, Rectangle, Polygon, Point, BoundingBox,
     ShapeStyle, LineStyle, Shape
 )
+from .line_shape_detector import LineBasedShapeDetector
 
 logger = logging.getLogger(__name__)
 
@@ -177,6 +178,8 @@ class VectorShapeExtractor:
     def _is_valid_element_style(self, style: ShapeStyle) -> bool:
         """Check if style is appropriate for element symbols"""
         # Check stroke width
+        if style.stroke_width is None:
+            return False
         if not (self.config.min_stroke_width <= style.stroke_width <= self.config.max_stroke_width):
             return False
         
