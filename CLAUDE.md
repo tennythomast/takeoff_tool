@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dataelan is a comprehensive AI-powered platform with intelligent LLM routing, cost optimization, and multi-tenant workspace management. The platform currently exposes a Django backend with WebSocket support; the previous React/Next.js frontend has been removed and is being rebuilt from scratch.
+Dataelan is a comprehensive AI-powered platform with intelligent LLM routing, cost optimization, and multi-tenant workspace management. The platform consists of a Django backend with WebSocket support and a Next.js frontend, designed for enterprise-scale AI applications. A key feature is the **Takeoff** module for advanced PDF/engineering drawing extraction using vector analysis and LLM-based element detection.
 
 ## Quick Start Commands
 
@@ -53,14 +53,20 @@ The backend uses a modular Django architecture with the following key applicatio
 
 **AI & Automation:**
 - `agents/` - Configurable AI agents with custom instructions and tools
-- `workflows/` - Node-based workflow automation system
 - `rag_service/` - Retrieval-Augmented Generation with Qdrant vector database
 - `mcp/` - Model Control Plane for external service integrations
 
+**Document Processing:**
+- `takeoff/` - Engineering drawing extraction with vector text/shape extraction and LLM-based element detection
+  - Vector text extractor for precise text positioning
+  - Vector shape extractor for geometric element detection
+  - Chunked LLM extraction service for large documents (handles 100+ elements)
+  - Measurement and validation services
+  - Schema-based validation for extracted data
+
 **Supporting Services:**
-- `template_library/` - Reusable templates for prompts and workflows
-- `actionable_tasks/` - Task management and tracking
 - `file_storage/` - File upload and management system
+- `benchmark/` - Platform evaluation and performance metrics
 
 **Key Architectural Patterns:**
 - WebSocket architecture with Django Channels for real-time features
@@ -75,29 +81,68 @@ The previous Next.js client has been removed. When the new frontend is scaffolde
 ## Database & Infrastructure
 
 **Database:** PostgreSQL with atomic transactions and proper indexing
-**Caching:** Redis for sessions, channel layers, and application caching  
+**Caching:** Redis for sessions, channel layers, and application caching
 **WebSockets:** Django Channels with Redis backend for real-time communication
 **Background Tasks:** Celery for asynchronous processing
 **Vector Database:** Qdrant for RAG and semantic search capabilities
+
+### Document Processing Stack
+
+The Takeoff module uses specialized libraries for PDF and document processing:
+
+**PDF Processing:**
+- PyMuPDF (fitz) - Advanced PDF extraction with vector graphics support
+- PyPDF2 - PDF processing (backward compatibility)
+- pdf2image - PDF to image conversion
+
+**Table Extraction:**
+- camelot-py - Table extraction from PDFs
+- pdfplumber - Alternative table extraction
+- pandas - DataFrame handling for tabulated data
+
+**Document Formats:**
+- python-docx - Word document processing
+- beautifulsoup4 - HTML processing
+- markdown - Markdown parsing
+
+**Text Processing:**
+- chardet - Encoding detection
+- sentence-transformers - Local embeddings for semantic search
+
+**Image Processing:**
+- Pillow (PIL) - Image manipulation and processing
 
 ## Environment Variables
 
 ### Backend (.env)
 ```bash
 # Database
-POSTGRES_NAME=dataelan
-POSTGRES_USER=dataelan
-POSTGRES_PASSWORD=dataelan
+POSTGRES_NAME=takeoff
+POSTGRES_USER=takeoff
+POSTGRES_PASSWORD=takeoff
 POSTGRES_HOST=localhost  # or 'db' for Docker
-POSTGRES_PORT=5434
+POSTGRES_PORT=5434       # Docker mapped port (internal: 5432)
 
 # Redis
 REDIS_HOST=localhost     # or 'redis' for Docker
 REDIS_PORT=6379
 
 # Django
-DEBUG=True
-SECRET_KEY=django-insecure-0kj$e7jk7@8s3pkn5v2eux*9f%g0uftkf&l6@l5(3c71w^4_ku
+DEBUG=1
+SECRET_KEY=your-secret-key-here
+ALLOWED_HOSTS=localhost,127.0.0.1
+
+# CORS settings
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://frontend:3000
+
+# API settings
+API_HOST=0.0.0.0
+API_PORT=8000
+
+# Channel Layers (for WebSockets)
+CHANNEL_LAYERS_BACKEND=channels_redis.core.RedisChannelLayer
+
+# MCP encryption key (auto-generated if not provided)
 MCP_ENCRYPTION_KEY=<your-fernet-key>
 
 # AI Provider API Keys (add as needed)
@@ -108,6 +153,51 @@ COHERE_API_KEY=<your-key>
 
 ### Frontend (.env.local)
 Pending. Define the necessary environment variables once the new frontend stack is chosen and scaffolded.
+
+## Takeoff Module - Document Extraction
+
+The Takeoff module provides advanced PDF and engineering drawing extraction capabilities:
+
+### Extraction Services
+
+1. **Vector Text Extractor** (`vector_text_extractor.py`)
+   - Extracts text with precise positioning from PDF vector graphics
+   - Handles fonts, encoding, and text transformations
+   - Returns structured text with bounding boxes and page numbers
+
+2. **Vector Shape Extractor** (`vector_shape_extractor.py`)
+   - Detects geometric shapes (circles, rectangles, polygons, ellipses)
+   - Analyzes line styles, colors, and fill patterns
+   - Useful for detecting element symbols in engineering drawings
+
+3. **LLM Extraction Service** (`llm_extraction.py`)
+   - Uses LLMs to extract structured elements from documents
+   - Supports single-pass extraction for smaller documents (<30 elements)
+
+4. **Chunked LLM Extraction** (`llm_extraction_chunked.py`)
+   - Solves output token limit issues for large documents
+   - Processes documents in chunks while maintaining full context
+   - Handles 100+ elements reliably
+   - Automatic deduplication and continuation detection
+   - Configuration:
+     - `ELEMENTS_PER_CHUNK = 15` (safe for 8K token limits)
+     - `MAX_CHUNKS = 20` (allows 300 total elements)
+     - `MAX_OUTPUT_TOKENS = 8000` (conservative limit)
+
+### When to Use Which Extraction Method
+
+- **Vector extractors**: For raw text/shape data without semantic understanding
+- **LLM extraction**: For documents with <30 structured elements
+- **Chunked LLM extraction**: For large documents (50+ elements) or unknown size
+
+### Extraction Models
+
+The `takeoff/models.py` defines comprehensive data structures:
+- `ShapeType`, `LineStyle`, `Point`, `BoundingBox`
+- `ShapeStyle` with validation for element symbols
+- Measurement and validation models
+
+See `backend/takeoff/services/CHUNKED_EXTRACTION_README.md` for detailed documentation on the chunked extraction service.
 
 ## Development Workflow
 
@@ -165,22 +255,37 @@ coverage report                         # View coverage report
 ```
 
 ### Frontend Testing
-Pending until the new frontend is created. Document the testing workflow here once available.
+```bash
+cd frontend
+npm test                                # Run Jest tests
+npm run test:watch                      # Watch mode
+```
 
 ## Important Notes
 
+### General Platform
 - **Multi-tenancy**: All models use organization-based isolation - always filter by organization
 - **Cost Tracking**: All AI operations track costs - use `ModelMetrics` for monitoring
 - **WebSocket Auth**: WebSocket connections require JWT token authentication
-- **Soft Delete**: Never use `.delete()` directly - models use soft delete patterns
+- **Soft Delete**: Never use `.delete()` directly - models use soft delete patterns (where implemented)
 - **LLM Routing**: Use `LLMRouter` service for intelligent model selection based on complexity
 - **Context Management**: Leverage `UniversalContextService` for cross-domain context sharing
+
+### Takeoff Module
+- **Extraction Method Selection**: Use chunked extraction (`llm_extraction_chunked.py`) for documents with 50+ elements or unknown size
+- **Token Limits**: The chunked service handles output token limits by processing in batches while maintaining full context
+- **Cost Implications**: Chunked extraction costs ~3x more than single-pass but guarantees complete extraction
+- **Vector Extraction**: Use vector extractors (`vector_text_extractor.py`, `vector_shape_extractor.py`) when you need raw geometric/text data without semantic understanding
+- **Deduplication**: The chunked service automatically deduplicates elements across chunks
+- **Testing Extraction**: Test scripts are in `backend/takeoff/tests/` - use Docker exec to run them
 
 ## Troubleshooting
 
 **Database Connection Issues:**
-- Check PostgreSQL is running on port 5434 (Docker) or 5432 (local)
-- Verify credentials in environment variables
+- Check PostgreSQL is running on port 5434 (Docker host, mapped from container's 5432) or 5432 (local)
+- Default database name is `takeoff` (not `dataelan`)
+- Verify credentials in environment variables match `.env.example`
+- Docker: `docker-compose ps` to check if db service is healthy
 
 **WebSocket Connection Issues:**
 - Ensure Redis is running and accessible
@@ -196,3 +301,12 @@ Pending until the new frontend is created. Document the testing workflow here on
 - Ensure all services are healthy: `docker-compose ps`
 - Check service logs: `docker-compose logs <service>`
 - Rebuild if needed: `docker-compose build --no-cache`
+- Container names: `takeoff_tool-backend-1`, `takeoff_tool-frontend-1`, `takeoff_tool-db-1`, `takeoff_tool-redis-1`
+
+**Takeoff Extraction Issues:**
+- **Truncated Output**: Use chunked extraction service for documents with many elements
+- **Missing Dependencies**: Ensure PyMuPDF, camelot-py, and other document processing libraries are installed
+- **Token Limit Errors**: Reduce `ELEMENTS_PER_CHUNK` in chunked service (default: 15)
+- **Incomplete Extraction**: Check raw response files in `backend/takeoff/tests/output/` directory
+- **Shape Detection**: Vector shape extractor requires vector graphics in PDF (not rasterized images)
+- **Text Positioning**: Vector text extractor provides more accurate positioning than PyMuPDF's built-in text extraction
