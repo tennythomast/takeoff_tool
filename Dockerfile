@@ -24,23 +24,6 @@ RUN pip install --no-cache-dir requests daphne channels-redis anthropic whitenoi
 # Copy backend code
 COPY backend/ /app/backend/
 
-# Frontend build stage
-FROM node:18-alpine AS frontend-build
-
-WORKDIR /app
-
-# Copy frontend package files
-COPY frontend/package*.json ./
-
-# Install dependencies
-RUN npm ci
-
-# Copy frontend source
-COPY frontend/ ./
-
-# Build frontend
-RUN npm run build
-
 # Final stage
 FROM python:3.9-slim
 
@@ -52,9 +35,6 @@ COPY --from=backend /usr/local/bin/ /usr/local/bin/
 
 # Copy backend code
 COPY backend/ /app/backend/
-
-# Copy frontend files
-COPY --from=frontend-build /app/ /app/frontend/
 
 # Set working directory to backend
 WORKDIR /app/backend

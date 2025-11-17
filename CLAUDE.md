@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dataelan is a comprehensive AI-powered platform with intelligent LLM routing, cost optimization, and multi-tenant workspace management. The platform consists of a Django backend with WebSocket support and a React,Next.js frontend, designed for enterprise-scale AI applications.
+Dataelan is a comprehensive AI-powered platform with intelligent LLM routing, cost optimization, and multi-tenant workspace management. The platform currently exposes a Django backend with WebSocket support; the previous React/Next.js frontend has been removed and is being rebuilt from scratch.
 
 ## Quick Start Commands
 
@@ -27,19 +27,6 @@ python manage.py setup_intelligent_routing # Setup routing rules
 python manage.py collectstatic --noinput  # Collect static files
 ```
 
-### Frontend (Next.js)
-```bash
-# Setup and run frontend
-cd dataelan-frontend
-npm install
-npm run dev    # Development server
-npm run build  # Production build
-npm run start  # Production server
-npm run lint   # Lint code
-npm test       # Run Jest tests
-npm run test:watch # Run tests in watch mode
-```
-
 ### Docker (Full Stack)
 ```bash
 # Run complete application with Docker
@@ -47,7 +34,9 @@ docker-compose up -d          # Start all services
 docker-compose down           # Stop all services  
 docker-compose build          # Rebuild images
 docker-compose logs backend   # View backend logs
-docker-compose logs frontend  # View frontend logs
+```
+
+> **Note:** Docker currently builds/runs only the backend, Postgres, and Redis services. Reintroduce a frontend service after scaffolding the new client application.
 ```
 
 ## Architecture Overview
@@ -80,21 +69,8 @@ The backend uses a modular Django architecture with the following key applicatio
 - Multi-tenancy with organization-based soft isolation
 - UUID-based entities with soft delete patterns
 
-### Frontend (Next.js)
-Modern Next.js 15 application with App Router architecture:
-
-**Key Features:**
-- TypeScript with comprehensive type safety
-- Tailwind CSS with custom design system using Radix UI and shadcn/ui
-- Real-time WebSocket chat with streaming AI responses
-- Multi-tenant workspace management with data isolation
-- Cost optimization dashboard with analytics and visualizations
-- JWT-based authentication with automatic token refresh
-
-**State Management:**
-- React Context for global state (auth, chat, sidebar)
-- TanStack React Query for server state management
-- Local/session storage for strategic persistence
+### Frontend (Rebuild in Progress)
+The previous Next.js client has been removed. When the new frontend is scaffolded, document its stack, commands, and integration points here so other contributors understand how to run it locally and inside Docker.
 
 ## Database & Infrastructure
 
@@ -131,10 +107,7 @@ COHERE_API_KEY=<your-key>
 ```
 
 ### Frontend (.env.local)
-```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000
-NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/chat/
-```
+Pending. Define the necessary environment variables once the new frontend stack is chosen and scaffolded.
 
 ## Development Workflow
 
@@ -147,12 +120,10 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/chat/
    - Add API documentation with drf-spectacular decorators
    - WebSocket consumers go in `consumers.py`, routing in `routing.py`
 
-2. **Frontend Changes:**
-   - Use TypeScript for all new code
-   - Follow shadcn/ui component patterns
-   - Add pages to `src/app/` directory (App Router)
-   - Use React Query for API calls with proper error handling
-   - Add tests in `__tests__/` or `.test.tsx` files
+2. **Frontend Changes (Coming Soon):**
+   - Document coding standards once the new framework is selected
+   - Add run/build/test commands for the new client
+   - Update Docker integration to include the frontend container
 
 3. **Database Changes:**
    - Always create migrations for model changes
@@ -193,12 +164,8 @@ coverage run --source='.' manage.py test # Run with coverage
 coverage report                         # View coverage report
 ```
 
-### Frontend Testing  
-```bash
-cd dataelan-frontend
-npm test                                # Run Jest tests
-npm run test:watch                      # Watch mode
-```
+### Frontend Testing
+Pending until the new frontend is created. Document the testing workflow here once available.
 
 ## Important Notes
 
