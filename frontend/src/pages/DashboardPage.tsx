@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { getCurrentUser, logout, type User } from '@/lib/api'
+import { getCurrentUser, type User } from '@/lib/api'
 import { useToast } from '@/hooks/use-toast'
+import { SidebarTrigger } from '@/components/ui/sidebar'
+import { Separator } from '@/components/ui/separator'
 
 export default function DashboardPage() {
   const [user, setUser] = useState<User | null>(null)
@@ -20,8 +22,6 @@ export default function DashboardPage() {
           title: 'Error',
           description: 'Failed to load user data',
         })
-        // If token is invalid, redirect to login
-        logout()
       } finally {
         setLoading(false)
       }
@@ -29,10 +29,6 @@ export default function DashboardPage() {
 
     fetchUser()
   }, [toast])
-
-  const handleLogout = () => {
-    logout()
-  }
 
   if (loading) {
     return (
@@ -46,22 +42,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <h1 className="text-xl font-bold">Takeoff Tool</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">
-              {user?.email}
-            </span>
-            <Button variant="outline" onClick={handleLogout}>
-              Logout
-            </Button>
-          </div>
-        </div>
+    <div className="flex flex-1 flex-col">
+      {/* Mobile header with sidebar trigger */}
+      <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:hidden">
+        <SidebarTrigger className="-ml-1" />
+        <Separator orientation="vertical" className="mr-2 h-4" />
+        <h1 className="text-lg font-semibold">Dashboard</h1>
       </header>
 
-      <main className="container mx-auto p-6">
+      {/* Main content */}
+      <main className="flex-1 p-6">
         <div className="mb-8">
           <h2 className="text-3xl font-bold">
             Welcome back, {user?.first_name || user?.email}!

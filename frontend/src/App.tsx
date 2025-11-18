@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { PublicRoute } from './components/PublicRoute'
 import { Toaster } from '@/components/ui/toaster'
+import { AppLayout } from '@/components/app-layout'
 
 function App() {
   return (
@@ -27,17 +28,38 @@ function App() {
             </PublicRoute>
           }
         />
-        
-        {/* Protected routes - require authentication */}
+
+        {/* Protected routes - require authentication and use AppLayout */}
         <Route
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardPage />
+              <AppLayout>
+                <DashboardPage />
+              </AppLayout>
             </ProtectedRoute>
           }
         />
-        
+
+        {/* Workspace route - placeholder for future implementation */}
+        <Route
+          path="/workspace"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <div className="flex h-full items-center justify-center p-6">
+                  <div className="text-center">
+                    <h2 className="text-2xl font-bold">Workspace</h2>
+                    <p className="text-muted-foreground mt-2">
+                      Workspace functionality coming soon
+                    </p>
+                  </div>
+                </div>
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
         {/* Root path - redirect based on auth status */}
         <Route
           path="/"
@@ -47,7 +69,7 @@ function App() {
             </ProtectedRoute>
           }
         />
-        
+
         {/* Catch all - redirect to dashboard (will redirect to login if not authenticated) */}
         <Route
           path="*"
