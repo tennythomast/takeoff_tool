@@ -449,7 +449,7 @@ class MemoryCleanupPolicyAdmin(admin.ModelAdmin):
         'organization_id', 'tier', 'domain_retention_summary', 
         'cost_controls_summary', 'preserve_starred_content', 'updated_at'
     ]
-    list_filter = ['tier', 'preserve_starred_content', 'preserve_agent_reasoning']
+    list_filter = ['tier', 'preserve_starred_content']
     search_fields = ['organization_id']
     readonly_fields = ['organization_id', 'created_at', 'updated_at']
     
@@ -459,7 +459,7 @@ class MemoryCleanupPolicyAdmin(admin.ModelAdmin):
         }),
         ('Domain-Specific Retention Policies', {
             'fields': (
-                'chat_session_retention_days', 'agent_session_retention_days', 
+                'chat_session_retention_days', 
                 'summary_cache_retention_days'
             )
         }),
@@ -477,7 +477,7 @@ class MemoryCleanupPolicyAdmin(admin.ModelAdmin):
         }),
         ('Domain-Specific Rules', {
             'fields': (
-                'preserve_agent_reasoning', 'preserve_tool_results'
+                'preserve_tool_results',
             )
         }),
         ('Custom Rules (Enterprise)', {
@@ -494,11 +494,9 @@ class MemoryCleanupPolicyAdmin(admin.ModelAdmin):
         return format_html(
             '<div style="font-size: 11px; line-height: 1.3;">'
             '💬 Chat: {} days<br>'
-            '🤖 Agent: {} days<br>'
             '📄 Cache: {} days'
             '</div>',
             obj.chat_session_retention_days,
-            obj.agent_session_retention_days,
             obj.summary_cache_retention_days
         )
     domain_retention_summary.short_description = 'Retention by Domain'
@@ -550,7 +548,7 @@ class MemoryUsageStatsAdmin(admin.ModelAdmin):
         }),
         ('Domain Volume Metrics', {
             'fields': (
-                'chat_entries_count', 'agent_entries_count',
+                'chat_entries_count',
                 'total_entries'
             )
         }),
@@ -618,15 +616,12 @@ class MemoryUsageStatsAdmin(admin.ModelAdmin):
             return "No entries"
         
         chat_pct = (obj.chat_entries_count / total) * 100
-        agent_pct = (obj.agent_entries_count / total) * 100
         
         return format_html(
             '<div style="font-size: 11px; line-height: 1.3;">'
-            '💬 {:.0f}% ({}) <br>'
-            '🤖 {:.0f}% ({})'
+            '💬 {:.0f}% ({})'
             '</div>',
-            chat_pct, obj.chat_entries_count,
-            agent_pct, obj.agent_entries_count
+            chat_pct, obj.chat_entries_count
         )
     domain_distribution.short_description = 'Domain Split'
     

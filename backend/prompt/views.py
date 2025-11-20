@@ -18,7 +18,7 @@ from .serializers import (
     ContextMetricsSerializer
 )
 from modelhub.models import ModelMetrics
-from workspaces.models import Workspace
+# from projects.models import Project  # Commented out for now
 
 # Configure logger
 logger = logging.getLogger(__name__)

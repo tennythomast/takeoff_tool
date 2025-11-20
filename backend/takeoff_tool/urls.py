@@ -35,12 +35,10 @@ from core.views.auth import EmailTokenObtainPairView
 # API v1 patterns
 api_v1_patterns = [
     path('', include('core.urls')),  # Core app - organizations, users, etc.
-    path('', include('workspaces.urls')),
+    path('', include('projects.urls')),
     path('', include('prompt.urls')),
     path('', include('file_storage.urls')),
     path('', include('modelhub.urls')),  # Model provider management
-    path('', include('agents.urls')),  # Agent management
-    path('mcp/', include('mcp.urls')),  # Model Control Plane management
     path('context/', include('context_manager.urls')),  # Context and knowledge management
 ]
 
@@ -66,7 +64,6 @@ urlpatterns = [
     # API v1 user endpoints - for frontend compatibility
     path('api/v1/users/', CreateUserView.as_view(), name='user_register_v1'),
     path('api/v1/users/me/', CurrentUserView.as_view(), name='current_user'),
-    path('api/', include('workspaces.urls')),
     
     # API Documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),

@@ -31,15 +31,15 @@ class VectorIndexInline(admin.TabularInline):
 @admin.register(KnowledgeBase)
 class KnowledgeBaseAdmin(admin.ModelAdmin):
     list_display = (
-        'name', 'organization_name', 'workspace_name', 'document_count',
+        'name', 'organization_name', 'project_name', 'document_count',
         'chunk_count', 'embedding_model_name', 'is_public', 'is_active'
     )
     list_filter = ('is_active', 'is_public', 'embedding_strategy', 'retrieval_strategy')
-    search_fields = ('name', 'description', 'organization__name', 'workspace__name')
+    search_fields = ('name', 'description', 'organization__name', 'project__title')
     readonly_fields = ('document_count', 'chunk_count', 'total_tokens', 'total_embedding_cost', 'last_updated', 'last_queried')
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'description', 'organization', 'workspace', 'created_by')
+            'fields': ('name', 'description', 'organization', 'project', 'created_by')
         }),
         ('Configuration', {
             'fields': ('embedding_model', 'embedding_strategy', 'retrieval_strategy', 'is_public')
@@ -58,11 +58,11 @@ class KnowledgeBaseAdmin(admin.ModelAdmin):
         return obj.organization.name
     organization_name.short_description = 'Organization'
     
-    def workspace_name(self, obj):
-        if obj.workspace:
-            return obj.workspace.name
+    def project_name(self, obj):
+        if obj.project:
+            return obj.project.title
         return '-'
-    workspace_name.short_description = 'Workspace'
+    project_name.short_description = 'Project'
     
     def embedding_model_name(self, obj):
         if obj.embedding_model:
@@ -312,7 +312,7 @@ class RAGQueryAdmin(admin.ModelAdmin):
                       'reranking_latency_ms', 'embedding_cost', 'reranking_cost', 'total_cost')
     fieldsets = (
         ('Basic Information', {
-            'fields': ('query_text', 'knowledge_base', 'user', 'workspace')
+            'fields': ('query_text', 'knowledge_base', 'user', 'project')
         }),
         ('Configuration', {
             'fields': ('retrieval_strategy', 'similarity_top_k', 'mmr_diversity_bias', 'reranking_enabled')

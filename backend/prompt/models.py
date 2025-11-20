@@ -29,11 +29,11 @@ class PromptSession(SoftDeletableMixin, BaseModel):
     # Core session fields
     title = models.CharField(_('title'), max_length=255, db_index=True)
     description = models.TextField(_('description'), blank=True)
-    workspace = models.ForeignKey(
-        'workspaces.workspace',
+    project = models.ForeignKey(
+        'projects.Project',
         on_delete=models.CASCADE,
         related_name='prompt_sessions',
-        verbose_name=_('workspace')
+        verbose_name=_('project')
     )
     creator = models.ForeignKey(
         'core.User',
@@ -74,7 +74,7 @@ class PromptSession(SoftDeletableMixin, BaseModel):
         verbose_name_plural = _('prompt sessions')
         ordering = ['-created_at']
         indexes = [
-            models.Index(fields=['workspace', 'status']),
+            models.Index(fields=['project', 'status']),
             models.Index(fields=['creator', 'status']),
             models.Index(fields=['model_type', 'status']),
             models.Index(fields=['is_active', 'status']),
@@ -112,8 +112,8 @@ class PromptSession(SoftDeletableMixin, BaseModel):
         """Create a new context session for this prompt session."""
         from context_manager.models import ContextSession
         
-        organization_id = self.workspace.organization.id
-        tier = getattr(self.workspace.organization, 'tier', 'starter')
+        organization_id = self.project.organization.id
+        tier = getattr(self.project.organization, 'tier', 'starter')
         
         context_session, created = ContextSession.objects.get_or_create(
             entity_id=self.id,
@@ -145,8 +145,8 @@ class PromptSession(SoftDeletableMixin, BaseModel):
         from context_manager.models import ContextSession
         from channels.db import database_sync_to_async
         
-        organization_id = self.workspace.organization.id
-        tier = getattr(self.workspace.organization, 'tier', 'starter')
+        organization_id = self.project.organization.id
+        tier = getattr(self.project.organization, 'tier', 'starter')
         
         context_session = await ContextSession.objects.acreate(
             organization_id=organization_id,
@@ -309,7 +309,7 @@ class Prompt(SoftDeletableMixin, BaseModel):
             }
             
             # Get organization
-            organization = self.session.workspace.organization
+            organization = self.session.project.organization
             
             # 1. Prepare context using universal service
             context_service = UniversalContextService()

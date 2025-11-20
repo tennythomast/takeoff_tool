@@ -1,6 +1,4 @@
 import { type ReactNode } from 'react'
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
-import { AppSidebar } from '@/components/app-sidebar'
 import { AppNavbar } from '@/components/app-navbar'
 
 interface AppLayoutProps {
@@ -9,14 +7,11 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
     return (
-        <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-                <AppNavbar />
-                <div className="flex flex-1 flex-col">
-                    {children}
-                </div>
-            </SidebarInset>
-        </SidebarProvider>
+        <div className="min-h-screen bg-[#e9eaec]">
+            <AppNavbar />
+            <main className="container mx-auto px-8 py-8">
+                {children}
+            </main>
+        </div>
     )
 }
