@@ -6,16 +6,16 @@ from .models import PromptSession, Prompt
 @admin.register(PromptSession)
 class PromptSessionAdmin(admin.ModelAdmin):
     list_display = [
-        'id', 'title', 'workspace', 'creator', 'model_type',
+        'id', 'title', 'project', 'creator', 'model_type',
         'status', 'context_session_id', 'started_at', 'completed_at', 'created_at'
     ]
-    list_filter = ['status', 'model_type', 'workspace', 'is_active']
-    search_fields = ['title', 'description', 'creator__username', 'workspace__name']
+    list_filter = ['status', 'model_type', 'project', 'is_active']
+    search_fields = ['title', 'description', 'creator__username', 'project__title']
     readonly_fields = ['created_at', 'updated_at', 'context_session_id']
     date_hierarchy = 'created_at'
     fieldsets = [
         ('Basic Information', {
-            'fields': ('title', 'description', 'workspace', 'creator', 'model_type', 'status')
+            'fields': ('title', 'description', 'project', 'creator', 'model_type', 'status')
         }),
         ('Context Integration', {
             'fields': ('context_session_id',)

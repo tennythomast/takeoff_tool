@@ -29,7 +29,7 @@ class FileStorageBackendAdmin(admin.ModelAdmin):
 @admin.register(FileUpload)
 class FileUploadAdmin(admin.ModelAdmin):
     list_display = (
-        'original_filename', 'organization', 'workspace_link', 'purpose',
+        'original_filename', 'organization', 'project_link', 'purpose',
         'access_level', 'file_size_display', 'status', 'uploaded_by',
         'created_at'
     )
@@ -39,7 +39,7 @@ class FileUploadAdmin(admin.ModelAdmin):
         'file_hash', 'storage_path', 'file_size_mb', 'last_accessed_at',
         'created_at', 'updated_at', 'processing_jobs_link'
     )
-    raw_id_fields = ('organization', 'workspace', 'uploaded_by', 'storage_backend')
+    raw_id_fields = ('organization', 'project', 'uploaded_by', 'storage_backend')
     fieldsets = (
         ('Basic Information', {
             'fields': (
@@ -49,7 +49,7 @@ class FileUploadAdmin(admin.ModelAdmin):
         }),
         ('Organization & Access', {
             'fields': (
-                'organization', 'workspace', 'uploaded_by',
+                'organization', 'project', 'uploaded_by',
                 'purpose', 'access_level'
             )
         }),
@@ -73,13 +73,13 @@ class FileUploadAdmin(admin.ModelAdmin):
         return f"{obj.file_size_mb} MB"
     file_size_display.short_description = "Size"
     
-    def workspace_link(self, obj):
-        """Display workspace with link"""
-        if obj.workspace:
-            url = reverse('admin:workspaces_workspace_change', args=[obj.workspace.id])
-            return format_html('<a href="{}">{}</a>', url, obj.workspace.name)
+    def project_link(self, obj):
+        """Display project with link"""
+        if obj.project:
+            url = reverse('admin:projects_project_change', args=[obj.project.id])
+            return format_html('<a href="{}">{}</a>', url, obj.project.title)
         return "-"
-    workspace_link.short_description = "Workspace"
+    project_link.short_description = "Project"
     
     def processing_jobs_link(self, obj):
         """Display link to processing jobs"""

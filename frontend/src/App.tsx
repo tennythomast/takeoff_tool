@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import SettingsPage from './pages/SettingsPage'
+import ProjectsPage from './pages/ProjectsPage'
 import DashboardPage from './pages/DashboardPage'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { PublicRoute } from './components/PublicRoute'
@@ -11,7 +13,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public routes - redirect to dashboard if already logged in */}
+        {/* Public routes - redirect to projects if already logged in */}
         <Route
           path="/login"
           element={
@@ -29,7 +31,7 @@ function App() {
           }
         />
 
-        {/* Protected routes - require authentication and use AppLayout */}
+        {/* Protected routes */}
         <Route
           path="/dashboard"
           element={
@@ -41,26 +43,45 @@ function App() {
           }
         />
 
-        {/* Workspace route - placeholder for future implementation */}
+        <Route
+          path="/projects"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <ProjectsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Settings route */}
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <SettingsPage />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Workspace route */}
         <Route
           path="/workspace"
           element={
             <ProtectedRoute>
               <AppLayout>
-                <div className="flex h-full items-center justify-center p-6">
-                  <div className="text-center">
-                    <h2 className="text-2xl font-bold">Workspace</h2>
-                    <p className="text-muted-foreground mt-2">
-                      Workspace functionality coming soon
-                    </p>
-                  </div>
+                <div className="p-8">
+                  <h1 className="text-2xl font-bold mb-4">Workspace</h1>
+                  <p>Workspace functionality coming soon</p>
                 </div>
               </AppLayout>
             </ProtectedRoute>
           }
         />
 
-        {/* Root path - redirect based on auth status */}
+        {/* Root path - redirect to projects */}
         <Route
           path="/"
           element={
@@ -70,7 +91,7 @@ function App() {
           }
         />
 
-        {/* Catch all - redirect to dashboard (will redirect to login if not authenticated) */}
+        {/* Catch all - redirect to projects */}
         <Route
           path="*"
           element={

@@ -83,8 +83,8 @@ class FileUpload(SoftDeletableMixin):
         related_name='file_uploads',
         db_index=True
     )
-    workspace = models.ForeignKey(
-        'workspaces.Workspace',
+    project = models.ForeignKey(
+        'projects.Project',
         on_delete=models.CASCADE,
         related_name='file_uploads',
         null=True,
@@ -168,7 +168,7 @@ class FileUpload(SoftDeletableMixin):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['organization', 'purpose', 'is_active']),
-            models.Index(fields=['workspace', 'is_active']),
+            models.Index(fields=['project', 'is_active']),
             models.Index(fields=['uploaded_by', 'created_at']),
             models.Index(fields=['status']),
             models.Index(fields=['file_hash']),
@@ -186,10 +186,10 @@ class FileUpload(SoftDeletableMixin):
 
     def clean(self):
         super().clean()
-        # Validate workspace belongs to organization
-        if self.workspace and self.workspace.organization_id != self.organization_id:
+        # Validate project belongs to organization
+        if self.project and self.project.organization_id != self.organization_id:
             raise ValidationError({
-                'workspace': 'Workspace must belong to the same organization'
+                'project': 'Project must belong to the same organization'
             })
 
     def save(self, *args, **kwargs):
@@ -204,12 +204,12 @@ class FileUpload(SoftDeletableMixin):
         super().save(*args, **kwargs)
 
     def _generate_storage_path(self):
-        """Generate storage path: org/workspace/purpose/hash/filename"""
+        """Generate storage path: org/project/purpose/hash/filename"""
         hash_prefix = self.file_hash[:8] if self.file_hash else 'temp'
         
         path_parts = [
             str(self.organization.id),
-            str(self.workspace.id) if self.workspace else 'no-workspace',
+            str(self.project.id) if self.project else 'no-project',
             self.purpose,
             hash_prefix,
             self.original_filename
@@ -221,10 +221,10 @@ class FileUpload(SoftDeletableMixin):
         """Auto-set access level based on purpose"""
         purpose_mapping = {
             'user_document': 'private',
-            'workspace_document': 'workspace',
-            'rag_document': 'workspace',
-            'agent_asset': 'workspace',
-            'workflow_asset': 'workspace',
+            'workspace_document': 'project',
+            'rag_document': 'project',
+            'agent_asset': 'project',
+            'workflow_asset': 'project',
         }
         
         if not self.access_level or self.access_level == 'private':
@@ -280,24 +280,24 @@ class FileUpload(SoftDeletableMixin):
             return False
         elif self.access_level == 'organization':
             return True
-        elif self.access_level == 'workspace':
-            return self._has_workspace_access(user)
+        elif self.access_level == 'project':
+            return self._has_project_access(user)
         
         return False
         
-    def _has_workspace_access(self, user: User) -> bool:
-        """Check if user has workspace access"""
-        if not self.workspace:
+    def _has_project_access(self, user: User) -> bool:
+        """Check if user has project access"""
+        if not self.project:
             return False
         
-        # Workspace owner
-        if self.workspace.owner_id == user.id:
+        # Project owner
+        if self.project.owner_id == user.id:
             return True
         
-        # Workspace collaborator
-        from workspaces.models import WorkspaceCollaborator
-        return WorkspaceCollaborator.objects.filter(
-            workspace=self.workspace,
+        # Project collaborator
+        from projects.models import ProjectCollaborator
+        return ProjectCollaborator.objects.filter(
+            project=self.project,
             user=user
         ).exists()
 
@@ -310,35 +310,35 @@ class FileUpload(SoftDeletableMixin):
         if self.uploaded_by_id == user.id:
             return True
         
-        # Workspace admin can edit workspace files
-        if self.workspace:
-            from workspaces.models import WorkspaceCollaborator
-            return WorkspaceCollaborator.objects.filter(
-                workspace=self.workspace,
+        # Project admin can edit project files
+        if self.project:
+            from projects.models import ProjectCollaborator
+            return ProjectCollaborator.objects.filter(
+                project=self.project,
                 user=user,
-                role=WorkspaceCollaborator.Role.ADMIN
+                role=ProjectCollaborator.Role.ADMIN
             ).exists()
         
         # Organization admin can edit
         return user.has_role(self.organization, 'ADMIN')
 
-    def can_use_in_agents_workflows(self, workspace) -> bool:
+    def can_use_in_agents_workflows(self, project) -> bool:
         """
-        Check if agents/workflows in a workspace can use this file.
+        Check if agents/workflows in a project can use this file.
         Core MVP feature for RAG integration.
         """
         if not self.is_processed:
             return False
         
-        # Must be workspace or organization level access
+        # Must be project or organization level access
         if self.access_level == 'private':
             return False
         
-        # If workspace file, must be same workspace
-        if self.access_level == 'workspace':
-            return self.workspace_id == workspace.id
+        # If project file, must be same project
+        if self.access_level == 'project':
+            return self.project_id == project.id
         
-        # Organization files accessible to all workspaces in org
+        # Organization files accessible to all projects in org
         return self.access_level == 'organization'
 
     def record_access(self):
@@ -347,18 +347,18 @@ class FileUpload(SoftDeletableMixin):
         self.save(update_fields=['last_accessed_at'])
 
     @classmethod
-    def get_workspace_files(cls, workspace, user=None):
+    def get_project_files(cls, project, user=None):
         """
-        Get files accessible in a workspace.
+        Get files accessible in a project.
         Core method for agent/workflow file access.
         """
-        # Base query: files in workspace + organization files
+        # Base query: files in project + organization files
         queryset = cls.objects.filter(
-            organization=workspace.organization,
+            organization=project.organization,
             is_active=True,
             status='completed'
         ).filter(
-            models.Q(workspace=workspace, access_level='workspace') |
+            models.Q(project=project, access_level='project') |
             models.Q(access_level='organization')
         )
         
@@ -369,7 +369,7 @@ class FileUpload(SoftDeletableMixin):
                 access_level='private'
             )
             queryset = queryset.filter(
-                models.Q(workspace=workspace, access_level='workspace') |
+                models.Q(project=project, access_level='project') |
                 models.Q(access_level='organization') |
                 private_files
             )
@@ -385,9 +385,9 @@ class FileUpload(SoftDeletableMixin):
         ).filter(
             models.Q(uploaded_by=user) |  # User's files
             models.Q(access_level='organization') |  # Org files
-            models.Q(  # Workspace files where user has access
-                access_level='workspace',
-                workspace__in=user.collaborated_workspaces.values_list('id', flat=True)
+            models.Q(  # Project files where user has access
+                access_level='project',
+                project__in=user.collaborated_projects.values_list('id', flat=True)
             )
         )
         
@@ -511,8 +511,8 @@ def get_organization_storage_usage(organization):
     }
 
 
-def check_file_upload_permissions(user: User, workspace=None, purpose='user_document'):
-    """Check if user can upload files to workspace/organization"""
+def check_file_upload_permissions(user: User, project=None, purpose='user_document'):
+    """Check if user can upload files to project/organization"""
     if not user or not user.is_active:
         return False
     
@@ -520,14 +520,14 @@ def check_file_upload_permissions(user: User, workspace=None, purpose='user_docu
     if not user.organization:
         return False
     
-    # If workspace specified, check workspace access
-    if workspace:
-        if workspace.owner_id == user.id:
+    # If project specified, check project access
+    if project:
+        if project.owner_id == user.id:
             return True
         
-        from workspaces.models import WorkspaceCollaborator
-        return WorkspaceCollaborator.objects.filter(
-            workspace=workspace,
+        from projects.models import ProjectCollaborator
+        return ProjectCollaborator.objects.filter(
+            project=project,
             user=user
         ).exists()
     
@@ -539,7 +539,7 @@ def check_file_upload_permissions(user: User, workspace=None, purpose='user_docu
 
 def get_rag_documents_for_knowledge_base(knowledge_base):
     """Get all RAG documents accessible to a knowledge base"""
-    if not knowledge_base.workspace:
+    if not knowledge_base.project:
         return FileUpload.objects.none()
     
     return FileUpload.objects.filter(
@@ -548,7 +548,7 @@ def get_rag_documents_for_knowledge_base(knowledge_base):
         status='completed',
         is_active=True
     ).filter(
-        models.Q(workspace=knowledge_base.workspace) |
+        models.Q(project=knowledge_base.project) |
         models.Q(access_level='organization')
     ).exclude(
         extracted_text__isnull=True
@@ -558,19 +558,19 @@ def get_rag_documents_for_knowledge_base(knowledge_base):
 
 
 def get_agent_accessible_files(agent):
-    """Get files accessible to an agent in its workspace"""
-    if not agent.workspace:
+    """Get files accessible to an agent in its project"""
+    if not agent.project:
         return FileUpload.objects.none()
     
-    return FileUpload.get_workspace_files(agent.workspace)
+    return FileUpload.get_project_files(agent.project)
 
 
 def get_workflow_accessible_files(workflow_execution):
     """Get files accessible to a workflow execution"""
-    if not workflow_execution.workflow.workspace:
+    if not workflow_execution.workflow.project:
         return FileUpload.objects.none()
     
-    return FileUpload.get_workspace_files(workflow_execution.workflow.workspace)
+    return FileUpload.get_project_files(workflow_execution.workflow.project)
 
 
 class FileFolder(SoftDeletableMixin, BaseModel):
@@ -583,8 +583,8 @@ class FileFolder(SoftDeletableMixin, BaseModel):
         related_name='file_folders',
         db_index=True
     )
-    workspace = models.ForeignKey(
-        'workspaces.Workspace',
+    project = models.ForeignKey(
+        'projects.Project',
         on_delete=models.CASCADE,
         related_name='file_folders',
         null=True,
@@ -625,13 +625,13 @@ class FileFolder(SoftDeletableMixin, BaseModel):
         verbose_name_plural = 'File Folders'
         ordering = ['name']
         indexes = [
-            models.Index(fields=['organization', 'workspace', 'parent_folder']),
+            models.Index(fields=['organization', 'project', 'parent_folder']),
             models.Index(fields=['created_by']),
             models.Index(fields=['access_level']),
         ]
         constraints = [
             models.UniqueConstraint(
-                fields=['name', 'parent_folder', 'workspace', 'organization'],
+                fields=['name', 'parent_folder', 'project', 'organization'],
                 name='unique_folder_per_location'
             )
         ]
@@ -669,23 +669,23 @@ class FileFolder(SoftDeletableMixin, BaseModel):
             return False
         elif self.access_level == 'organization':
             return True
-        elif self.access_level == 'workspace':
-            return self._has_workspace_access(user)
+        elif self.access_level == 'project':
+            return self._has_project_access(user)
         
         return False
     
-    def _has_workspace_access(self, user: User) -> bool:
-        """Check if user has workspace access"""
-        if not self.workspace:
+    def _has_project_access(self, user: User) -> bool:
+        """Check if user has project access"""
+        if not self.project:
             return False
         
-        # Workspace owner
-        if self.workspace.owner_id == user.id:
+        # Project owner
+        if self.project.owner_id == user.id:
             return True
         
-        # Workspace collaborator
-        from workspaces.models import WorkspaceCollaborator
-        return WorkspaceCollaborator.objects.filter(
-            workspace=self.workspace,
+        # Project collaborator
+        from projects.models import ProjectCollaborator
+        return ProjectCollaborator.objects.filter(
+            project=self.project,
             user=user
         ).exists()

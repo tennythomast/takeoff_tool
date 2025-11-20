@@ -87,12 +87,10 @@ THIRD_PARTY_APPS = [
 # Local apps
 LOCAL_APPS = [
     'core.apps.CoreConfig',
-    'workspaces.apps.WorkspacesConfig',
+    'projects.apps.ProjectsConfig',
     'prompt.apps.PromptConfig',
     'modelhub.apps.ModelhubConfig',  # Model provider management
-    'agents.apps.AgentsConfig',  # Agent management
     'context_manager.apps.ContextManagerConfig', # Context manager management
-    'mcp.apps.MCPConfig',  # Model Control Plane management
     'file_storage.apps.FileStorageConfig', # File storage management
     'benchmark.apps.BenchmarkConfig',  # Benchmark app for platform evaluation
     'rag_service.apps.RagServiceConfig',  # RAG service management

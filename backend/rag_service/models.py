@@ -41,8 +41,8 @@ class KnowledgeBase(SoftDeletableMixin):
         related_name='knowledge_bases',
         db_index=True
     )
-    workspace = models.ForeignKey(
-        'workspaces.Workspace',
+    project = models.ForeignKey(
+        'projects.Project',
         on_delete=models.CASCADE,
         related_name='knowledge_bases',
         null=True,
@@ -118,7 +118,7 @@ class KnowledgeBase(SoftDeletableMixin):
         ordering = ['-created_at']
         indexes = [
             models.Index(fields=['organization', 'is_active']),
-            models.Index(fields=['workspace', 'is_active']),
+            models.Index(fields=['project', 'is_active']),
             models.Index(fields=['embedding_strategy']),
             models.Index(fields=['retrieval_strategy']),
         ]
@@ -128,10 +128,10 @@ class KnowledgeBase(SoftDeletableMixin):
     
     def clean(self):
         super().clean()
-        # Validate workspace belongs to organization
-        if self.workspace and self.workspace.organization_id != self.organization_id:
+        # Validate project belongs to organization
+        if self.project and self.project.organization_id != self.organization_id:
             raise ValidationError({
-                'workspace': 'Workspace must belong to the same organization'
+                'project': 'Project must belong to the same organization'
             })
     
     def update_statistics(self):
@@ -173,16 +173,16 @@ class KnowledgeBase(SoftDeletableMixin):
         if self.is_public:
             return True
             
-        # Workspace access check
-        if self.workspace:
-            # Workspace owner
-            if self.workspace.owner_id == user.id:
+        # Project access check
+        if self.project:
+            # Project owner
+            if self.project.owner_id == user.id:
                 return True
                 
-            # Workspace collaborator
-            from workspaces.models import WorkspaceCollaborator
-            return WorkspaceCollaborator.objects.filter(
-                workspace=self.workspace,
+            # Project collaborator
+            from projects.models import ProjectCollaborator
+            return ProjectCollaborator.objects.filter(
+                project=self.project,
                 user=user
             ).exists()
             
@@ -197,13 +197,13 @@ class KnowledgeBase(SoftDeletableMixin):
         if self.created_by_id == user.id:
             return True
             
-        # Workspace admin can edit workspace knowledge bases
-        if self.workspace:
-            from workspaces.models import WorkspaceCollaborator
-            return WorkspaceCollaborator.objects.filter(
-                workspace=self.workspace,
+        # Project admin can edit project knowledge bases
+        if self.project:
+            from projects.models import ProjectCollaborator
+            return ProjectCollaborator.objects.filter(
+                project=self.project,
                 user=user,
-                role=WorkspaceCollaborator.Role.ADMIN
+                role=ProjectCollaborator.Role.ADMIN
             ).exists()
             
         # Organization admin can edit
@@ -214,7 +214,7 @@ class KnowledgeBase(SoftDeletableMixin):
     def get_knowledge_base_async(cls, knowledge_base_id):
         """Get knowledge base by ID asynchronously"""
         try:
-            return cls.objects.select_related('organization', 'workspace', 'embedding_model').get(
+            return cls.objects.select_related('organization', 'project', 'embedding_model').get(
                 id=knowledge_base_id,
                 is_active=True
             )
@@ -222,27 +222,27 @@ class KnowledgeBase(SoftDeletableMixin):
             return None
             
     @classmethod
-    def get_workspace_knowledge_bases(cls, workspace, user=None):
-        """Get knowledge bases accessible in a workspace"""
-        # Base query: knowledge bases in workspace + public org knowledge bases
+    def get_project_knowledge_bases(cls, project, user=None):
+        """Get knowledge bases accessible in a project"""
+        # Base query: knowledge bases in project + public org knowledge bases
         queryset = cls.objects.filter(
-            organization=workspace.organization,
+            organization=project.organization,
             is_active=True
         ).filter(
-            models.Q(workspace=workspace) |
-            models.Q(is_public=True, workspace__isnull=True)
+            models.Q(project=project) |
+            models.Q(is_public=True, project__isnull=True)
         )
         
         # If user specified, also include their private knowledge bases
         if user:
             private_kbs = models.Q(
                 created_by=user,
-                workspace__isnull=True,
+                project__isnull=True,
                 is_public=False
             )
             queryset = queryset.filter(
-                models.Q(workspace=workspace) |
-                models.Q(is_public=True, workspace__isnull=True) |
+                models.Q(project=project) |
+                models.Q(is_public=True, project__isnull=True) |
                 private_kbs
             )
             
@@ -258,7 +258,7 @@ class KnowledgeBase(SoftDeletableMixin):
             models.Q(created_by=user) |
             models.Q(is_public=True) |
             models.Q(
-                workspace__in=user.collaborated_workspaces.values_list('id', flat=True)
+                project__in=user.collaborated_projects.values_list('id', flat=True)
             )
         )
             
@@ -891,8 +891,8 @@ class RAGQuery(BaseModel):
         null=True,
         related_name='rag_queries'
     )
-    workspace = models.ForeignKey(
-        'workspaces.Workspace',
+    project = models.ForeignKey(
+        'projects.Project',
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -991,7 +991,7 @@ class RAGQuery(BaseModel):
         indexes = [
             models.Index(fields=['knowledge_base', 'created_at']),
             models.Index(fields=['user', 'created_at']),
-            models.Index(fields=['workspace', 'created_at']),
+            models.Index(fields=['project', 'created_at']),
             models.Index(fields=['status']),
             models.Index(fields=['session_id']),
             models.Index(fields=['source_type', 'source_id']),
@@ -1051,7 +1051,7 @@ class RAGQuery(BaseModel):
     
     @classmethod
     @database_sync_to_async
-    def create_query_async(cls, knowledge_base, query_text, user=None, workspace=None,
+    def create_query_async(cls, knowledge_base, query_text, user=None, project=None,
                          session_id='', source_type='', source_id=None,
                          retrieval_strategy='similarity', similarity_top_k=5,
                          mmr_diversity_bias=None, reranking_enabled=False):
@@ -1060,7 +1060,7 @@ class RAGQuery(BaseModel):
             knowledge_base=knowledge_base,
             query_text=query_text,
             user=user,
-            workspace=workspace,
+            project=project,
             session_id=session_id,
             source_type=source_type,
             source_id=source_id,

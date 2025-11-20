@@ -19,12 +19,11 @@ django.setup()
 from channels.routing import ProtocolTypeRouter, URLRouter
 from core.middleware import TokenAuthMiddleware
 from core.routing import websocket_urlpatterns as core_websocket_urlpatterns
-from mcp.routing import websocket_urlpatterns as mcp_websocket_urlpatterns
 from prompt.routing import websocket_urlpatterns as prompt_websocket_urlpatterns
 
 
 # Combine all websocket URL patterns
-all_websocket_urlpatterns = core_websocket_urlpatterns + mcp_websocket_urlpatterns + prompt_websocket_urlpatterns
+all_websocket_urlpatterns = core_websocket_urlpatterns + prompt_websocket_urlpatterns
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

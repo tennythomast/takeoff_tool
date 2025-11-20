@@ -12,6 +12,48 @@ export interface User {
   email: string
   first_name: string
   last_name: string
+  is_verified: boolean
+  organization: {
+    id: string
+    name: string
+    slug: string
+    org_type: string
+  } | null
+}
+
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  org_type: 'SOLO' | 'TEAM' | 'ENTERPRISE'
+  api_key_strategy: string
+  monthly_ai_budget: number | null
+  ai_usage_alerts: boolean
+  default_optimization_strategy: 'cost_first' | 'balanced' | 'quality_first' | 'performance_first'
+  current_month_spend: number
+  budget_status: BudgetStatus
+  member_count: number
+  user_role: string
+}
+
+export interface BudgetStatus {
+  has_budget: boolean
+  budget?: number
+  current_spend?: number
+  remaining?: number
+  percentage?: number
+  status?: 'normal' | 'warning' | 'critical'
+  message?: string
+}
+
+export interface BudgetInfo {
+  monthly_budget: number | null
+  current_spend: number
+  remaining: number | null
+  alerts_enabled: boolean
+  approaching_limit: boolean
+  optimization_strategy: string
+  api_key_strategy: string
 }
 
 /**
@@ -58,7 +100,7 @@ export async function refreshToken(refresh: string): Promise<{ access: string }>
  */
 export async function getCurrentUser(): Promise<User> {
   const token = localStorage.getItem('access_token')
-  
+
   if (!token) {
     throw new Error('No access token found')
   }
@@ -84,7 +126,7 @@ export async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = localStorage.getItem('access_token')
-  
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(options.headers as Record<string, string>),
@@ -106,18 +148,18 @@ export async function apiRequest<T>(
       try {
         const { access } = await refreshToken(refreshTokenValue)
         localStorage.setItem('access_token', access)
-        
+
         // Retry the original request with new token
         headers['Authorization'] = `Bearer ${access}`
         const retryResponse = await fetch(`${API_URL}${endpoint}`, {
           ...options,
           headers,
         })
-        
+
         if (!retryResponse.ok) {
           throw new Error('Request failed after token refresh')
         }
-        
+
         return retryResponse.json()
       } catch {
         // Refresh failed, redirect to login
@@ -144,4 +186,48 @@ export function logout() {
   localStorage.removeItem('access_token')
   localStorage.removeItem('refresh_token')
   window.location.href = '/login'
+}
+
+/**
+ * Update user profile
+ */
+export async function updateUserProfile(data: Partial<User>): Promise<User> {
+  return apiRequest<User>('/api/v1/users/me/', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+/**
+ * Get organization by ID
+ */
+export async function getOrganization(id: string): Promise<Organization> {
+  return apiRequest<Organization>(`/api/v1/organizations/${id}/`)
+}
+
+/**
+ * Update organization
+ */
+export async function updateOrganization(id: string, data: Partial<Organization>): Promise<Organization> {
+  return apiRequest<Organization>(`/api/v1/organizations/${id}/`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  })
+}
+
+/**
+ * Create organization
+ */
+export async function createOrganization(data: Partial<Organization>): Promise<Organization> {
+  return apiRequest<Organization>('/api/v1/organizations/', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+/**
+ * Get budget information for organization
+ */
+export async function getBudgetInfo(id: string): Promise<BudgetInfo> {
+  return apiRequest<BudgetInfo>(`/api/v1/organizations/${id}/budget_info/`)
 }

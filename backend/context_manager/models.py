@@ -30,11 +30,11 @@ class ContextSession(models.Model):
     
     # Universal entity reference - works for any domain
     session_type = models.CharField(max_length=20, choices=SESSION_TYPES)
-    entity_id = models.UUIDField(db_index=True)  # Points to PromptSession, AgentSession, WorkflowExecution
+    entity_id = models.UUIDField(db_index=True)  # Points to PromptSession, WorkflowExecution
     entity_type = models.CharField(
         max_length=50, 
         db_index=True,
-        help_text="Entity type: 'prompt_session', 'agent_session', 'workflow_execution', etc."
+        help_text="Entity type: 'prompt_session', 'workflow_execution', etc."
     )
     
     # Subscription and capability management
@@ -81,18 +81,12 @@ class ContextSession(models.Model):
         return f"Context Session {self.session_type} - {self.entity_type} ({self.tier})"
     
     def get_entity(self):
-        """Get the actual domain entity (PromptSession, AgentSession, etc.)"""
+        """Get the actual domain entity (PromptSession, etc.)"""
         if self.entity_type == 'prompt_session':
             from prompt.models import PromptSession
             try:
                 return PromptSession.objects.get(id=self.entity_id)
             except PromptSession.DoesNotExist:
-                return None
-        elif self.entity_type == 'agent_session':
-            from agents.models import AgentSession
-            try:
-                return AgentSession.objects.get(id=self.entity_id)
-            except AgentSession.DoesNotExist:
                 return None
         return None
     
@@ -154,7 +148,6 @@ class ContextEntry(models.Model):
         ('user', 'User'),
         ('assistant', 'Assistant'),
         ('system', 'System'),
-        ('agent', 'Agent'),              # For agent-specific interactions
         ('tool', 'Tool'),                # For tool execution results
         ('function', 'Function'),        # For function call results
     ]
@@ -192,7 +185,7 @@ class ContextEntry(models.Model):
     source_entity_type = models.CharField(
         max_length=50, 
         blank=True,
-        help_text="Source type: 'prompt', 'agent_action', 'workflow_step', 'tool_execution', etc."
+        help_text="Source type: 'prompt', 'workflow_step', 'tool_execution', etc."
     )
     
     # Vector embedding support
@@ -258,12 +251,6 @@ class ContextEntry(models.Model):
                 return Prompt.objects.get(id=self.source_entity_id)
             except Prompt.DoesNotExist:
                 return None
-        elif self.source_entity_type == 'agent_action':
-            from agents.models import AgentAction
-            try:
-                return AgentAction.objects.get(id=self.source_entity_id)
-            except AgentAction.DoesNotExist:
-                return None
         return None
     
     def get_thread_entries(self):
@@ -287,7 +274,6 @@ class ContextSummaryCache(models.Model):
     
     SUMMARY_TYPES = [
         ('conversation', 'Conversation Summary'),
-        ('agent_reasoning', 'Agent Reasoning Summary'),
         ('tool_usage', 'Tool Usage Summary'),
     ]
     
@@ -423,7 +409,6 @@ class MemoryCleanupPolicy(models.Model):
     
     # Retention policies by domain
     chat_session_retention_days = models.IntegerField(default=7)
-    agent_session_retention_days = models.IntegerField(default=14)  # Agents might need longer retention
     
     # Cache retention
     summary_cache_retention_days = models.IntegerField(default=7)
@@ -445,7 +430,6 @@ class MemoryCleanupPolicy(models.Model):
     preserve_high_confidence_responses = models.BooleanField(default=True)
     
     # Domain-specific rules
-    preserve_agent_reasoning = models.BooleanField(default=True)  # Keep agent thought processes
     preserve_tool_results = models.BooleanField(default=False)    # Tool results can be regenerated
     
     # Custom rules (Enterprise)
@@ -465,7 +449,6 @@ class MemoryCleanupPolicy(models.Model):
         """Get retention days for specific session type"""
         return {
             'chat': self.chat_session_retention_days,
-            'agent': self.agent_session_retention_days,
         }.get(session_type, self.chat_session_retention_days)
 
 
@@ -483,7 +466,6 @@ class MemoryUsageStats(models.Model):
     
     # Volume metrics by domain
     chat_entries_count = models.IntegerField(default=0)
-    agent_entries_count = models.IntegerField(default=0)
     total_entries = models.IntegerField(default=0)
     
     # Context operation counts
@@ -549,12 +531,9 @@ class MemoryUsageStats(models.Model):
             
             if role in ['user', 'assistant']:
                 self.chat_entries_count += count
-            elif role == 'agent':
-                self.agent_entries_count += count
         
-        self.total_entries = self.chat_entries_count + self.agent_entries_count
+        self.total_entries = self.chat_entries_count
         self.save(update_fields=[
             'chat_entries_count', 
-            'agent_entries_count', 
             'total_entries'
         ])
